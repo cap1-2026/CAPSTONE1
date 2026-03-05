@@ -109,9 +109,7 @@ export default function OwnerApply() {
   function submit() {
     if (!validate()) return;
     // Placeholder: submit to backend API
-    Alert.alert("Application submitted", "Your application will be reviewed within 2-3 business days.", [
-      { text: "OK", onPress: () => router.push("/owner/home") },
-    ]);
+    router.replace("/owner/review");
   }
 
   return (
