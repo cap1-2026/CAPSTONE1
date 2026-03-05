@@ -1,55 +1,115 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { loginUser } from "../../services/authService";
 
-export default function RoleLogin() {
-  const { role } = useLocalSearchParams() as { role?: string };
+export default function LoginScreen() {
+
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const { role } = useLocalSearchParams();
 
-  function handleLogin() {
-    if (!username || !password) {
-      Alert.alert("Validation", "Please enter username and password");
-      return;
+  const [email,setEmail] = useState("");
+  const [password,setPassword] = useState("");
+
+  const handleLogin = async () => {
+
+    try{
+
+      const user = await loginUser(email,password);
+
+      if(user.role === "owner"){
+        router.replace("/owner/home");
+      }else{
+        router.replace("/tenant/home");
+      }
+
+    }catch(e){
+      alert("Invalid Email or Password");
     }
 
-    // Mock authentication: in real app call API and validate role
-    const r = (role || "tenant") as "tenant" | "owner";
-    const target: "/tenant/home" | "/owner/home" =
-      r === "tenant" ? "/tenant/home" : "/owner/home";
-    router.replace(target);
-  }
+  };
 
   return (
+
     <View style={styles.container}>
-      <Text style={styles.title}>{role?.toString().toUpperCase()} Login</Text>
+
+      <Text style={styles.title}>
+        Login as {role}
+      </Text>
+
       <TextInput
-        placeholder="Username"
-        value={username}
-        onChangeText={setUsername}
+        placeholder="Email Address"
         style={styles.input}
-        autoCapitalize="none"
+        value={email}
+        onChangeText={setEmail}
       />
+
       <TextInput
         placeholder="Password"
+        style={styles.input}
+        secureTextEntry
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
       />
-      <Button title="Login" onPress={handleLogin} />
-      <View style={{ height: 12 }} />
-      <Button
-        title="No account? Register"
-        onPress={() => router.push({ pathname: "/register/[role]", params: { role: role ?? "tenant" } })}
-      />
+
+      <Pressable style={styles.button} onPress={handleLogin}>
+        <Text style={styles.buttonText}>Login</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={()=>router.push(`/register/${role}`)}
+      >
+        <Text style={styles.link}>
+          No account? Register
+        </Text>
+      </Pressable>
+
     </View>
+
   );
+
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, justifyContent: "center" },
-  title: { fontSize: 22, textAlign: "center", marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: "#ccc", padding: 10, borderRadius: 6, marginBottom: 12 },
+
+  container:{
+    flex:1,
+    justifyContent:"center",
+    padding:20
+  },
+
+  title:{
+    fontSize:24,
+    fontWeight:"bold",
+    marginBottom:30,
+    textAlign:"center"
+  },
+
+  input:{
+    borderWidth:1,
+    borderColor:"#ccc",
+    padding:12,
+    borderRadius:8,
+    marginBottom:15
+  },
+
+  button:{
+    backgroundColor:"#6C63FF",
+    padding:14,
+    borderRadius:8,
+    alignItems:"center"
+  },
+
+  buttonText:{
+    color:"white",
+    fontSize:16,
+    fontWeight:"bold"
+  },
+
+  link:{
+    textAlign:"center",
+    marginTop:20,
+    color:"#6C63FF"
+  }
+
 });

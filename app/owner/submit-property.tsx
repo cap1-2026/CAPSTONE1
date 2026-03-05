@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 // We dynamically require `expo-document-picker` at runtime so the app
 // doesn't crash if the dependency hasn't been installed yet.
 import { useRouter } from "expo-router";
