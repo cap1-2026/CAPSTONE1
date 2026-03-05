@@ -505,7 +505,7 @@ export default function BrowseProperties() {
                 </View>
                 <TouchableOpacity 
                   style={styles.viewDetailsButton}
-                  onPress={() => router.push(`/tenant/browse-properties` as any)}
+                  onPress={() => router.push(`/tenant/property/${property.id}` as any)}
                 >
                   <Text style={styles.viewDetailsText}>View Details</Text>
                 </TouchableOpacity>
