@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, ScrollView } from "react-native";
-import { Slot, useRouter, Stack, useSegments } from "expo-router";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Slot, Stack, useRouter, useSegments } from "expo-router";
+import React, { useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function OwnerLayout() {
   const [open, setOpen] = useState(false);
@@ -26,7 +26,7 @@ export default function OwnerLayout() {
               <MaterialCommunityIcons name="arrow-left" size={20} />
             </TouchableOpacity>
           ) : null}
-          <Text style={styles.brand}>PropertyPro</Text>
+          <Text style={styles.brand}>List your property with us</Text>
         </View>
         {showMenu ? (
           <TouchableOpacity onPress={() => setOpen(true)} style={styles.hamburger}>
