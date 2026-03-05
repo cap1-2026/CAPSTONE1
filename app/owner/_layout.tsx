@@ -26,7 +26,7 @@ export default function OwnerLayout() {
               <MaterialCommunityIcons name="arrow-left" size={20} />
             </TouchableOpacity>
           ) : null}
-          <Text style={styles.brand}>HAHA</Text>
+          <Text style={styles.brand}>List your property with us</Text>
         </View>
         {showMenu ? (
           <TouchableOpacity onPress={() => setOpen(true)} style={styles.hamburger}>
