@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type NotificationType = "all" | "booking" | "payment" | "contract" | "system" | "property" | "tenant";
+type NotificationType = "all" | "booking" | "payment";
 
 interface Notification {
   id: string;
@@ -63,24 +63,6 @@ export default function NotificationsPage() {
       timestamp: "3 days ago",
       isRead: true,
       actionRequired: false
-    },
-    {
-      id: "5",
-      type: "property",
-      title: "New Property Match",
-      message: "A new property matching your preferences has been listed: Luxe Studio in BGC (₱20,000/month).",
-      timestamp: "1 week ago",
-      isRead: true,
-      actionRequired: false
-    },
-    {
-      id: "6",
-      type: "system",
-      title: "Welcome to PadFinder!",
-      message: "Thank you for registering as a tenant. Start browsing available properties and submit your booking requests.",
-      timestamp: "2 weeks ago",
-      isRead: true,
-      actionRequired: false
     }
   ]);
 
@@ -94,10 +76,6 @@ export default function NotificationsPage() {
     switch (type) {
       case "booking": return "calendar";
       case "payment": return "card";
-      case "contract": return "document-text";
-      case "system": return "information-circle";
-      case "property": return "home";
-      case "tenant": return "people";
       default: return "notifications";
     }
   };
@@ -106,10 +84,6 @@ export default function NotificationsPage() {
     switch (type) {
       case "booking": return "#2196F3";
       case "payment": return "#4CAF50";
-      case "contract": return "#FF9800";
-      case "system": return "#9C27B0";
-      case "property": return "#00BCD4";
-      case "tenant": return "#FF5722";
       default: return "#666";
     }
   };
@@ -200,7 +174,7 @@ export default function NotificationsPage() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterTabs}
         >
-          {(["all", "booking", "payment", "contract", "property", "system"] as NotificationType[]).map((f) => (
+          {(["all", "booking", "payment"] as NotificationType[]).map((f) => (
             <TouchableOpacity
               key={f}
               style={[styles.filterChip, filter === f && styles.filterChipActive]}
