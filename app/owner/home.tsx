@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 
 export default function OwnerHome() {
@@ -12,6 +12,31 @@ export default function OwnerHome() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      {/* Navigation Header */}
+      <View style={styles.headerNav}>
+        <Text style={styles.brandTitle}>PropertyPro Owner</Text>
+        <View style={styles.navButtons}>
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={() => router.push('/owner/bookings')}
+          >
+            <Ionicons name="calendar-outline" size={24} color="#007AFF" />
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>3</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={() => router.push('/owner/notifications')}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#007AFF" />
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>5</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <View style={styles.hero}>
         <Text style={styles.heroTitle}>Let Us Manage Your Property</Text>
         <Text style={styles.heroSubtitle}>Professional property management with automated rent collection, smart key systems, and secure digital contracts. Focus on growing your portfolio while we handle the rest.</Text>
@@ -112,6 +137,42 @@ export default function OwnerHome() {
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
+  headerNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingTop: 20,
+  },
+  brandTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  navButtons: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  navButton: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   header: { fontSize: 24, fontWeight: "600", marginBottom: 16 },
     lead: { fontSize: 16, color: '#444', marginBottom: 12 },
     hero: { backgroundColor: '#1565D8', padding: 24, borderRadius: 12, marginBottom: 18 },

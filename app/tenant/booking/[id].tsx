@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -24,9 +24,31 @@ export default function BookingPage() {
   const securityDeposit = property.price;
   const totalDue = property.price + securityDeposit;
 
-  const handleProceedToPayment = () => {
-    // In real app, validate fields and proceed to payment
-    console.log("Proceeding to payment...");
+  const handleSubmitBooking = () => {
+    // Validate fields
+    if (!moveInDate || !leaseDuration) {
+      Alert.alert("Missing Information", "Please fill in all required fields");
+      return;
+    }
+    
+    // In real app, submit booking to backend
+    console.log("Booking submitted...");
+    
+    // Show success message and redirect
+    Alert.alert(
+      "Booking Request Submitted! ✓",
+      "Your booking request has been submitted successfully. The property owner will review your application within 2-3 business days. You'll receive a notification once it's approved.",
+      [
+        {
+          text: "View My Requests",
+          onPress: () => router.push("/tenant/approvals")
+        },
+        {
+          text: "OK",
+          style: "cancel"
+        }
+      ]
+    );
   };
 
   return (
@@ -102,27 +124,30 @@ export default function BookingPage() {
           <View style={styles.infoBox}>
             <View style={styles.infoHeader}>
               <Ionicons name="information-circle" size={20} color="#1976D2" />
-              <Text style={styles.infoTitle}>Important Information:</Text>
+              <Text style={styles.infoTitle}>How Booking Works:</Text>
             </View>
             <View style={styles.infoList}>
               <Text style={styles.infoItem}>
-                • You'll pay first month rent + security deposit today
+                1. Submit your booking request with move-in date and lease duration
               </Text>
               <Text style={styles.infoItem}>
-                • Security deposit is held in escrow for the lease duration
+                2. Property owner will review and approve your request (2-3 days)
               </Text>
               <Text style={styles.infoItem}>
-                • Digital contract will be sent after payment confirmation
+                3. Once approved, you'll receive a notification to proceed with payment
               </Text>
               <Text style={styles.infoItem}>
-                • IoT key access will be provided after contract signing
+                4. After payment, digital contract will be sent for e-signature
+              </Text>
+              <Text style={styles.infoItem}>
+                5. IoT key access will be activated after contract signing
               </Text>
             </View>
           </View>
 
-          {/* Proceed to Payment Button */}
-          <TouchableOpacity style={styles.paymentButton} onPress={handleProceedToPayment}>
-            <Text style={styles.paymentButtonText}>Proceed to Payment</Text>
+          {/* Submit Booking Button */}
+          <TouchableOpacity style={styles.paymentButton} onPress={handleSubmitBooking}>
+            <Text style={styles.paymentButtonText}>Submit Booking Request</Text>
           </TouchableOpacity>
         </View>
 
@@ -153,23 +178,24 @@ export default function BookingPage() {
 
           {/* Total Due */}
           <View style={styles.totalSection}>
-            <Text style={styles.totalLabel}>Total Due Today:</Text>
+            <Text style={styles.totalLabel}>Total Due After Approval:</Text>
             <Text style={styles.totalAmount}>₱{totalDue.toLocaleString()}</Text>
+            <Text style={styles.totalNote}>Payment required only after owner approval</Text>
           </View>
 
           {/* Benefits */}
           <View style={styles.benefits}>
             <View style={styles.benefitItem}>
               <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.benefitText}>Secure payment processing</Text>
+              <Text style={styles.benefitText}>No payment required now</Text>
             </View>
             <View style={styles.benefitItem}>
               <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.benefitText}>Deposit held in escrow</Text>
+              <Text style={styles.benefitText}>Owner reviews within 2-3 days</Text>
             </View>
             <View style={styles.benefitItem}>
               <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.benefitText}>Instant booking confirmation</Text>
+              <Text style={styles.benefitText}>Get notification when approved</Text>
             </View>
           </View>
         </View>
@@ -233,6 +259,7 @@ const styles = StyleSheet.create({
   totalSection: { backgroundColor: "#f8f8f8", padding: 16, borderRadius: 8, marginBottom: 20 },
   totalLabel: { fontSize: 16, color: "#666", marginBottom: 4 },
   totalAmount: { fontSize: 32, fontWeight: "700", color: "#2962FF" },
+  totalNote: { fontSize: 12, color: "#999", marginTop: 4 },
   
   // Benefits
   benefits: { gap: 12 },

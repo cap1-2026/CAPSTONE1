@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function TenantHome() {
   const router = useRouter();
@@ -39,6 +40,31 @@ export default function TenantHome() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      {/* Header Navigation */}
+      <View style={styles.headerNav}>
+        <Text style={styles.appTitle}>PropertyPro</Text>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={() => router.push("/tenant/approvals")}
+          >
+            <Ionicons name="calendar-outline" size={24} color="#333" />
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>2</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={() => router.push("/tenant/notifications")}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#333" />
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>4</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Hero Section */}
       <View style={styles.hero}>
         <Text style={styles.heroTitle}>Find Your Perfect Home</Text>
@@ -122,7 +148,45 @@ export default function TenantHome() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
+  container: { padding: 20, paddingTop: 0 },
+  headerNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    marginBottom: 12,
+  },
+  appTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1565D8',
+  },
+  headerIcons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  iconButton: {
+    position: 'relative',
+    padding: 8,
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#F44336',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
   header: { fontSize: 24, fontWeight: "600", marginBottom: 16 },
   lead: { fontSize: 16, color: '#444', marginBottom: 12 },
   hero: { backgroundColor: '#1565D8', padding: 24, borderRadius: 12, marginBottom: 18 },
