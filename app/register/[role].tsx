@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Image } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function RoleRegister() {
   const { role } = useLocalSearchParams() as { role?: string };
@@ -44,7 +44,7 @@ export default function RoleRegister() {
         <View style={[styles.header, { backgroundColor: roleColor }]}>
           <View style={styles.headerContent}>
             <View style={styles.logoContainer}>
-              <Image source={require("../../assets/images/padfinder-logo.png")} style={styles.logoImage} />
+              <Ionicons name="home" size={40} color="#fff" />
               <Text style={styles.logoText}>PadFinder</Text>
             </View>
             <Text style={styles.headerSubtitle}>Find Your Perfect Space</Text>
@@ -188,7 +188,6 @@ const styles = StyleSheet.create({
   header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 20, position: "relative" },
   headerContent: { alignItems: "center", zIndex: 1 },
   logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
-  logoImage: { width: 60, height: 60, resizeMode: "contain" },
   logoText: { fontSize: 36, fontWeight: "800", color: "#fff" },
   headerSubtitle: { fontSize: 16, color: "#fff", opacity: 0.9 },
   waveContainer: { position: "absolute", bottom: -1, left: 0, right: 0, height: 30, overflow: "hidden" },
