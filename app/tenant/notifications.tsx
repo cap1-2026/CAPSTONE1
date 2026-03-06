@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 type NotificationType = "all" | "booking" | "payment" | "contract" | "system" | "property" | "tenant";
 
@@ -165,7 +166,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -319,7 +320,7 @@ export default function NotificationsPage() {
           <Text style={styles.footerButtonText}>Browse Properties</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -333,7 +334,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    paddingTop: 50,
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
   },

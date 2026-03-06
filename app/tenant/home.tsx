@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from "react-native";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
+import React, { useState } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function TenantHome() {
   const router = useRouter();
@@ -38,9 +39,23 @@ export default function TenantHome() {
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Hero Section */}
-      <View style={styles.hero}>
+    <View style={{ flex: 1 }}>
+      {/* Header */}
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>PropertyPro</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity onPress={() => router.push("/tenant/approvals")} style={styles.iconBtn}>
+            <MaterialCommunityIcons name="clock-check-outline" size={22} color="#333" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/tenant/notifications")} style={styles.iconBtn}>
+            <MaterialCommunityIcons name="bell-outline" size={22} color="#333" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <ScrollView contentContainerStyle={styles.container}>
+        {/* Hero Section */}
+        <View style={styles.hero}>
         <Text style={styles.heroTitle}>Find Your Perfect Home</Text>
         <Text style={styles.heroSubtitle}>
           Browse verified apartments, dorms, condos, and transient rentals. Book online and move in with digital keys.
@@ -118,12 +133,26 @@ export default function TenantHome() {
         ))}
       </View>
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
+  headerBar: { 
+    height: 56, 
+    backgroundColor: '#fff', 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 16, 
+    elevation: 2, 
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0'
+  },
   header: { fontSize: 24, fontWeight: "600", marginBottom: 16 },
+  headerTitle: { fontSize: 20, fontWeight: "700", color: "#333" },
+  iconBtn: { padding: 8 },
   lead: { fontSize: 16, color: '#444', marginBottom: 12 },
   hero: { backgroundColor: '#1565D8', padding: 24, borderRadius: 12, marginBottom: 18 },
   heroTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginBottom: 8 },

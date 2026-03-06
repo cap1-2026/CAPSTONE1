@@ -1,8 +1,8 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from 'expo-image-picker';
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useState } from "react";
+import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function BookingPage() {
   const router = useRouter();
@@ -76,7 +76,7 @@ export default function BookingPage() {
     }
   };
 
-  const handleProceedToPayment = () => {
+  const handleSubmitBooking = () => {
     // Validate personal information
     if (!fullName || !email || !phone || !currentAddress || !validId || !idType ||
         !emergencyContactName || !emergencyContactPhone) {
@@ -96,12 +96,14 @@ export default function BookingPage() {
       return;
     }
     
-    // In real app, validate email format, phone format, and proceed to payment
-    Alert.alert("Success", "Proceeding to payment...");
+    // In real app, this would submit the data to backend
     console.log({
       personalInfo: { fullName, email, phone, currentAddress, idType, validId, idImageUri: idImage, emergencyContactName, emergencyContactPhone },
       bookingDetails: { moveInDate, leaseDuration }
     });
+
+    // Navigate to pending approval page
+    router.replace("/tenant/pending-approval");
   };
 
   return (
@@ -389,10 +391,16 @@ export default function BookingPage() {
             </View>
             <View style={styles.infoList}>
               <Text style={styles.infoItem}>
-                • You'll pay first month rent + security deposit today
+                • Your request will be sent to the owner for review
               </Text>
               <Text style={styles.infoItem}>
-                • Security deposit is held in escrow for the lease duration
+                • Owner typically responds within 24-48 hours
+              </Text>
+              <Text style={styles.infoItem}>
+                • You'll be notified once your request is approved
+              </Text>
+              <Text style={styles.infoItem}>
+                • Payment will be required after approval
               </Text>
               <Text style={styles.infoItem}>
                 • Digital contract will be sent after payment confirmation
@@ -403,9 +411,9 @@ export default function BookingPage() {
             </View>
           </View>
 
-          {/* Proceed to Payment Button */}
-          <TouchableOpacity style={styles.paymentButton} onPress={handleProceedToPayment}>
-            <Text style={styles.paymentButtonText}>Book Now</Text>
+          {/* Submit Booking Button */}
+          <TouchableOpacity style={styles.paymentButton} onPress={handleSubmitBooking}>
+            <Text style={styles.paymentButtonText}>Submit Booking Request</Text>
           </TouchableOpacity>
         </View>
 
@@ -436,7 +444,7 @@ export default function BookingPage() {
 
           {/* Total Due */}
           <View style={styles.totalSection}>
-            <Text style={styles.totalLabel}>Total Due Today:</Text>
+            <Text style={styles.totalLabel}>Estimated Total (After Approval):</Text>
             <Text style={styles.totalAmount}>₱{totalDue.toLocaleString()}</Text>
           </View>
 
@@ -444,15 +452,15 @@ export default function BookingPage() {
           <View style={styles.benefits}>
             <View style={styles.benefitItem}>
               <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.benefitText}>Secure payment processing</Text>
+              <Text style={styles.benefitText}>Owner reviews your application</Text>
+            </View>
+            <View style={styles.benefitItem}>
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+              <Text style={styles.benefitText}>Secure payment after approval</Text>
             </View>
             <View style={styles.benefitItem}>
               <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
               <Text style={styles.benefitText}>Deposit held in escrow</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.benefitText}>Instant booking confirmation</Text>
             </View>
           </View>
         </View>
