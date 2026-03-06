@@ -25,7 +25,7 @@ export default function OwnerLayout() {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
           {showBack ? (
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <MaterialCommunityIcons name="arrow-left" size={20} />
@@ -33,13 +33,18 @@ export default function OwnerLayout() {
           ) : null}
           <Text style={styles.brand}>List your property with us</Text>
         </View>
-        {showMenu ? (
-          <TouchableOpacity onPress={() => setOpen(true)} style={styles.hamburger}>
-            <View style={styles.bar} />
-            <View style={styles.bar} />
-            <View style={styles.bar} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity onPress={() => go('/owner/notifications')} style={styles.notificationBtn}>
+            <MaterialCommunityIcons name="bell-outline" size={22} color="#333" />
           </TouchableOpacity>
-        ) : null}
+          {showMenu ? (
+            <TouchableOpacity onPress={() => setOpen(true)} style={styles.hamburger}>
+              <View style={styles.bar} />
+              <View style={styles.bar} />
+              <View style={styles.bar} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
       <Stack screenOptions={{ headerShown: false }}>
@@ -80,10 +85,11 @@ export default function OwnerLayout() {
 
 const styles = StyleSheet.create({
   header: { height: 56, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, elevation: 2, justifyContent: 'space-between' },
-  hamburger: { padding: 8, marginLeft: 12 },
+  hamburger: { padding: 8 },
   bar: { width: 22, height: 2, backgroundColor: '#111', marginVertical: 2 },
   brand: { fontSize: 18, fontWeight: '600' },
   backBtn: { padding: 8, marginRight: 8 },
+  notificationBtn: { padding: 8 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', flexDirection: 'row', justifyContent: 'flex-end' },
   sideFull: { width: '82%', height: '100%', backgroundColor: '#fff', padding: 16, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
   menuHeader: { fontWeight: '700', marginBottom: 12 },
