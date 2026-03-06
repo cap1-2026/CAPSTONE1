@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -34,9 +34,17 @@ export default function RoleLogin() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Hero Header */}
         <View style={[styles.header, { backgroundColor: roleColor }]}>
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          
           <View style={styles.headerContent}>
             <View style={styles.logoContainer}>
-              <Ionicons name="home" size={40} color="#fff" />
+              <Image source={require("../../assets/images/padfinder-logo.png")} style={styles.logoImage} />
               <Text style={styles.logoText}>PadFinder</Text>
             </View>
             <Text style={styles.headerSubtitle}>Find Your Perfect Space</Text>
@@ -135,13 +143,15 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: "#f5f7fa" },
   container: { flexGrow: 1 },
   header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 20, position: "relative" },
+  backButton: { position: "absolute", top: 10, left: 10, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(0,0,0,0.1)", justifyContent: "center", alignItems: "center" },
   headerContent: { alignItems: "center", zIndex: 1 },
   logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
+  logoImage: { width: 60, height: 60, resizeMode: "contain" },
   logoText: { fontSize: 36, fontWeight: "800", color: "#fff" },
   headerSubtitle: { fontSize: 16, color: "#fff", opacity: 0.9 },
   waveContainer: { position: "absolute", bottom: -1, left: 0, right: 0, height: 30, overflow: "hidden" },
   wave: { position: "absolute", bottom: -10, left: 0, right: 0, height: 40, backgroundColor: "#f5f7fa", borderTopLeftRadius: 50, borderTopRightRadius: 50 },
-  card: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: -30, borderRadius: 20, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 8 },
+  card: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: 0, borderRadius: 20, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 8 },
   cardHeader: { marginBottom: 24, alignItems: "center" },
   welcomeText: { fontSize: 28, fontWeight: "700", color: "#333", marginBottom: 4 },
   roleText: { fontSize: 14, color: "#666" },

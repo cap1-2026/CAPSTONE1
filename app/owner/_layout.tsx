@@ -13,6 +13,11 @@ export default function OwnerLayout() {
     router.push(path as any);
   }
 
+  function handleLogout() {
+    setOpen(false);
+    router.replace('/');
+  }
+
   const lastSegment = segments[segments.length - 1];
   const showBack = !!lastSegment && lastSegment !== "home";
   const showMenu = lastSegment === "home";
@@ -46,6 +51,9 @@ export default function OwnerLayout() {
           <Pressable style={styles.sideFull} onPress={() => { /* capture touches */ }}>
             <ScrollView>
               <Text style={styles.menuHeader}>Quick Actions</Text>
+              <TouchableOpacity style={styles.menuItem} onPress={() => go('/owner/dashboard')}>
+                <Text>Dashboard</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => go('/owner/properties')}>
                 <Text>My Listed Properties</Text>
               </TouchableOpacity>
@@ -55,7 +63,13 @@ export default function OwnerLayout() {
               <TouchableOpacity style={styles.menuItem} onPress={() => go('/owner/contracts')}>
                 <Text>Contract Copies</Text>
               </TouchableOpacity>
-              {/* 'Apply' route removed; menu item intentionally omitted */}
+              
+              <View style={styles.divider} />
+              
+              <TouchableOpacity style={styles.logoutItem} onPress={handleLogout}>
+                <MaterialCommunityIcons name="logout" size={20} color="#DC2626" />
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -74,4 +88,7 @@ const styles = StyleSheet.create({
   sideFull: { width: '82%', height: '100%', backgroundColor: '#fff', padding: 16, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
   menuHeader: { fontWeight: '700', marginBottom: 12 },
   menuItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  divider: { height: 1, backgroundColor: '#ddd', marginVertical: 12 },
+  logoutItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
+  logoutText: { fontSize: 16, color: '#DC2626', fontWeight: '600' },
 });

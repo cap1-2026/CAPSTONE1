@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { Text, View, TouchableOpacity, StyleSheet, ScrollView, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -16,7 +16,7 @@ export default function Index() {
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.logoContainer}>
-            <Ionicons name="home" size={48} color="#fff" />
+            <Image source={require("../assets/images/padfinder-logo.png")} style={styles.logoImage} />
             <Text style={styles.logoText}>PadFinder</Text>
           </View>
           <Text style={styles.headerSubtitle}>Find Your Perfect Space</Text>
@@ -100,12 +100,13 @@ const styles = StyleSheet.create({
   header: { backgroundColor: "#007AFF", paddingTop: 80, paddingBottom: 100, paddingHorizontal: 20, position: "relative" },
   headerContent: { alignItems: "center", zIndex: 1 },
   logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+  logoImage: { width: 80, height: 80, resizeMode: "contain" },
   logoText: { fontSize: 42, fontWeight: "800", color: "#fff" },
   headerSubtitle: { fontSize: 18, color: "#fff", opacity: 0.95, marginBottom: 4 },
   tagline: { fontSize: 14, color: "#fff", opacity: 0.8 },
   waveContainer: { position: "absolute", bottom: -1, left: 0, right: 0, height: 30, overflow: "hidden" },
   wave: { position: "absolute", bottom: -10, left: 0, right: 0, height: 40, backgroundColor: "#f5f7fa", borderTopLeftRadius: 50, borderTopRightRadius: 50 },
-  card: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: -40, borderRadius: 20, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 8, marginBottom: 24 },
+  card: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: 0, borderRadius: 20, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 8, marginBottom: 24 },
   cardHeader: { marginBottom: 24, alignItems: "center" },
   selectTitle: { fontSize: 26, fontWeight: "700", color: "#333", marginBottom: 6 },
   selectSubtitle: { fontSize: 14, color: "#666" },
