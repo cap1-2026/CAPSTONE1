@@ -44,6 +44,9 @@ export default function TenantHome() {
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>PropertyPro</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity onPress={() => router.push("/tenant/dashboard")} style={styles.iconBtn}>
+            <MaterialCommunityIcons name="view-dashboard-outline" size={22} color="#333" />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push("/tenant/approvals")} style={styles.iconBtn}>
             <MaterialCommunityIcons name="clock-check-outline" size={22} color="#333" />
           </TouchableOpacity>
@@ -69,6 +72,55 @@ export default function TenantHome() {
         </TouchableOpacity>
 
         <Text style={styles.heroFooter}>🏠 Over 500+ verified properties available now</Text>
+      </View>
+
+      {/* Quick Access Dashboard */}
+      <Text style={styles.header}>My Account</Text>
+      <Text style={styles.lead}>Manage your rentals, payments, and contracts</Text>
+      <View style={styles.dashboardGrid}>
+        <TouchableOpacity 
+          style={styles.dashboardCard}
+          onPress={() => router.push("/tenant/dashboard")}
+        >
+          <View style={[styles.dashboardIcon, { backgroundColor: "#E3F2FD" }]}>
+            <MaterialCommunityIcons name="view-dashboard" size={28} color="#2196F3" />
+          </View>
+          <Text style={styles.dashboardCardTitle}>Dashboard</Text>
+          <Text style={styles.dashboardCardDesc}>Overview & stats</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.dashboardCard}
+          onPress={() => router.push("/tenant/properties")}
+        >
+          <View style={[styles.dashboardIcon, { backgroundColor: "#E8F5E9" }]}>
+            <MaterialCommunityIcons name="home-city" size={28} color="#4CAF50" />
+          </View>
+          <Text style={styles.dashboardCardTitle}>My Properties</Text>
+          <Text style={styles.dashboardCardDesc}>Active rentals</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.dashboardCard}
+          onPress={() => router.push("/tenant/payment")}
+        >
+          <View style={[styles.dashboardIcon, { backgroundColor: "#FFF3E0" }]}>
+            <MaterialCommunityIcons name="credit-card" size={28} color="#FF9800" />
+          </View>
+          <Text style={styles.dashboardCardTitle}>Payments</Text>
+          <Text style={styles.dashboardCardDesc}>Pay rent online</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.dashboardCard}
+          onPress={() => router.push("/tenant/contracts")}
+        >
+          <View style={[styles.dashboardIcon, { backgroundColor: "#F3E5F5" }]}>
+            <MaterialCommunityIcons name="file-document" size={28} color="#9C27B0" />
+          </View>
+          <Text style={styles.dashboardCardTitle}>Contracts</Text>
+          <Text style={styles.dashboardCardDesc}>Lease agreements</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Features Bar */}
@@ -184,4 +236,43 @@ const styles = StyleSheet.create({
   benefitIcon: { fontSize: 32, marginBottom: 8 },
   benefitTitle: { fontWeight: '700', marginBottom: 6, textAlign: 'center' },
   benefitText: { color: '#666', fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  dashboardGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: 12, 
+    marginTop: 8, 
+    marginBottom: 18 
+  },
+  dashboardCard: { 
+    backgroundColor: '#fff', 
+    borderRadius: 12, 
+    padding: 16, 
+    width: '48%', 
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  dashboardIcon: { 
+    width: 56, 
+    height: 56, 
+    borderRadius: 28, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 12 
+  },
+  dashboardCardTitle: { 
+    fontSize: 15, 
+    fontWeight: '700', 
+    color: '#333', 
+    marginBottom: 4, 
+    textAlign: 'center' 
+  },
+  dashboardCardDesc: { 
+    fontSize: 12, 
+    color: '#666', 
+    textAlign: 'center' 
+  },
 });
