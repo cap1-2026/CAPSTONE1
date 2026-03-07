@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert } from "react-native";
-// We dynamically require `expo-document-picker` at runtime so the app
-// doesn't crash if the dependency hasn't been installed yet.
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import React, { useEffect, useState } from "react";
+import { Alert, Image, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import API_ENDPOINTS from "../../config/api";
+import { UserStorage } from "../../utils/userStorage";
 
 export default function OwnerApply() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const [editId, setEditId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -13,6 +16,7 @@ export default function OwnerApply() {
   const [ownershipFile, setOwnershipFile] = useState<any>(null);
   const [hasDocumentPicker, setHasDocumentPicker] = useState<boolean>(false);
   const [agree, setAgree] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Property Details
   const [propertyTitle, setPropertyTitle] = useState("");
@@ -43,13 +47,7 @@ export default function OwnerApply() {
   const [hasElevator, setHasElevator] = useState(false);
 
   useEffect(() => {
-    // detect availability once so UI can adapt
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      // require may throw if module isn't installed
-      // and this keeps Metro from crashing on static import
-      // when the package is missing.
-      // @ts-ignore
       const dp = require("expo-document-picker");
       if (dp) setHasDocumentPicker(true);
     } catch (e) {
@@ -57,59 +55,193 @@ export default function OwnerApply() {
     }
   }, []);
 
-  async function pickFile(setter: (f: any) => void) {
-    if (!hasDocumentPicker) {
-      Alert.alert(
-        "Upload unavailable",
-        "File uploads require the optional package `expo-document-picker`. Install it and run `npm install` in the project to enable attachments.",
-      );
+  // Load existing property data when editing
+  useEffect(() => {
+    const id = params.id ? Number(params.id) : null;
+    if (!id) return;
+    setEditId(id);
+
+    fetch(`${API_ENDPOINTS.GET_PROPERTIES}?property_id=${id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.status !== "success") return;
+        const p = data.data;
+        setPropertyTitle(p.name || "");
+        setPropertyType(p.property_type || "");
+        setMonthlyRent(p.price ? String(Math.round(parseFloat(p.price))) : "");
+        setAddress(p.address || "");
+        setBedrooms(p.rooms ? String(p.rooms) : "");
+        setFloorArea(p.room_size || "");
+        setDescription(p.rules || "");
+
+        // Parse amenities string back into toggles
+        const am = (p.amenities || "").toLowerCase();
+        setHasWifi(am.includes("wifi"));
+        setHasWater(am.includes("water"));
+        setHasElectricity(am.includes("electricity"));
+        setHasAircon(am.includes("aircon") || am.includes("air con"));
+        setHasFurnished(am.includes("furnished"));
+        setHasSecurity(am.includes("security"));
+        setHasElevator(am.includes("elevator"));
+        setHasParking(am.includes("parking"));
+      })
+      .catch(() => {});
+  }, [params.id]);
+
+  async function pickDocumentImage(setter: (f: any) => void) {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library.");
       return;
     }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const DocumentPickerModule = require("expo-document-picker");
-      const res = await DocumentPickerModule.getDocumentAsync({ copyToCacheDirectory: false });
-      if (res && res.type === "success") setter(res);
-    } catch (err) {
-      console.warn("File pick error", err);
-      Alert.alert("Upload failed", "Unable to pick a file. Try again or install `expo-document-picker`.");
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setter(result.assets[0]);
     }
   }
 
+  async function pickPropertyImage() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Please allow access to your photo library.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setPropertyImages(prev => [...prev, ...result.assets]);
+    }
+  }
+
+  function removeImage(index: number) {
+    setPropertyImages(prev => prev.filter((_, i) => i !== index));
+  }
+
   function validate() {
-    if (!name.trim() || !email.trim() || !phone.trim()) {
-      Alert.alert("Missing Information", "Please fill out all required owner fields.");
+    if (!propertyTitle.trim()) {
+      Alert.alert("Missing Information", "Please enter a property title.");
       return false;
     }
-    if (!propertyTitle.trim() || !propertyType.trim() || !monthlyRent.trim() || 
-        !address.trim() || !city.trim() || !province.trim() || 
-        !bedrooms.trim() || !bathrooms.trim() || !floorArea.trim() || !description.trim()) {
-      Alert.alert("Missing Information", "Please fill out all required property fields.");
+    if (!monthlyRent.trim()) {
+      Alert.alert("Missing Information", "Please enter the monthly rent.");
       return false;
     }
-    if (!idFile || !ownershipFile) {
-      if (!hasDocumentPicker) {
-        // allow submission but inform user that attachments were not included
-        return true;
-      }
-      Alert.alert(
-        "Missing documents",
-        "You haven't attached identity or ownership documents. Please attach them before submission.",
-      );
-      return false;
-    }
-    if (!agree) {
-      Alert.alert("You must agree to the terms and management contract.");
+    if (!address.trim() || !city.trim()) {
+      Alert.alert("Missing Information", "Please enter the property address and city.");
       return false;
     }
     return true;
   }
 
-  function submit() {
+  async function submit() {
     if (!validate()) return;
-    // Placeholder: submit to backend API
-    router.replace("/owner/review");
+
+    const user = await UserStorage.getUser();
+    const ownerId = user?.user_id ?? 1;
+
+    setIsSubmitting(true);
+    try {
+      const amenityList = [];
+      if (hasWifi) amenityList.push("WiFi");
+      if (hasWater) amenityList.push("Water");
+      if (hasElectricity) amenityList.push("Electricity");
+      if (hasAircon) amenityList.push("Aircon");
+      if (hasFurnished) amenityList.push("Furnished");
+      if (hasSecurity) amenityList.push("Security");
+      if (hasElevator) amenityList.push("Elevator");
+      if (hasParking) amenityList.push(`Parking(${parkingType || "any"})`);
+
+      const fullAddress = [address, city, province, landmark].filter(Boolean).join(", ");
+
+      let propertyId: number;
+
+      if (editId) {
+        // Editing an existing property
+        const response = await fetch(API_ENDPOINTS.UPDATE_PROPERTY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            property_id: editId,
+            property_name: propertyTitle,
+            property_type: propertyType || "Apartment",
+            address: fullAddress,
+            rooms: parseInt(bedrooms) || 1,
+            room_size: floorArea,
+            max_occupants: 1,
+            amenities: amenityList.join(", "),
+            price: parseFloat(monthlyRent) || 0,
+            deposit: parseFloat(monthlyRent) || 0,
+            rules: description,
+          }),
+        });
+        const data = await response.json();
+        if (data.status !== "success" && data.status !== "info") {
+          Alert.alert("Failed", data.message || "Could not update property.");
+          setIsSubmitting(false);
+          return;
+        }
+        propertyId = editId;
+      } else {
+        // Creating a new property
+        const response = await fetch(API_ENDPOINTS.ADD_PROPERTY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            owner_id: ownerId,
+            property_name: propertyTitle,
+            property_type: propertyType || "Apartment",
+            address: fullAddress,
+            rooms: parseInt(bedrooms) || 1,
+            room_size: floorArea,
+            max_occupants: 1,
+            amenities: amenityList.join(", "),
+            price: parseFloat(monthlyRent) || 0,
+            deposit: parseFloat(monthlyRent) || 0,
+            rules: description,
+          }),
+        });
+        const data = await response.json();
+        if (data.status !== "success") {
+          Alert.alert("Failed", data.message || "Could not save property.");
+          setIsSubmitting(false);
+          return;
+        }
+        propertyId = data.property_id;
+      }
+
+      for (const img of propertyImages) {
+        try {
+          const imgForm = new FormData();
+          imgForm.append("property_id", String(propertyId));
+
+          // On Expo Web, img.uri is a blob: URL — fetch it to get real binary data
+          const blobRes = await fetch(img.uri);
+          const blob = await blobRes.blob();
+          const fileName = img.fileName || `photo_${Date.now()}.jpg`;
+          const file = new File([blob], fileName, { type: blob.type || "image/jpeg" });
+          imgForm.append("image", file, fileName);
+
+          await fetch(API_ENDPOINTS.UPLOAD_IMAGES, { method: "POST", body: imgForm });
+        } catch (_) {}
+      }
+
+      setIsSubmitting(false);
+      Alert.alert(
+        editId ? "Property Updated!" : "Property Submitted!",
+        editId ? "Your property has been updated successfully." : "Your property has been saved successfully."
+      );
+      router.replace("/owner/properties");
+    } catch (error) {
+      setIsSubmitting(false);
+      Alert.alert("Error", "Failed to submit. Please check your connection and try again.");
+    }
   }
 
   return (
@@ -126,14 +258,45 @@ export default function OwnerApply() {
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+63 912 345 6789" />
 
       <Text style={styles.label}>Government-Issued ID *</Text>
-      <TouchableOpacity style={styles.upload} onPress={() => pickFile(setIdFile)}>
-        <Text style={styles.uploadText}>{idFile ? idFile.name : "Click to upload or drag and drop"}</Text>
-        <Text style={styles.hint}>PDF, JPG, PNG (max 10MB)</Text>
+      <TouchableOpacity
+        style={[styles.upload, idFile && styles.uploadDone]}
+        onPress={() => pickDocumentImage(setIdFile)}
+      >
+        {idFile ? (
+          <View style={styles.docPreviewRow}>
+            <Image source={{ uri: idFile.uri }} style={styles.docPreview} />
+            <View style={styles.docPreviewInfo}>
+              <Text style={styles.docPreviewDone}>✓ ID Uploaded</Text>
+              <Text style={styles.docPreviewChange}>Tap to change</Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.uploadText}>📷  Tap to upload Government ID</Text>
+            <Text style={styles.hint}>JPG, PNG — Driver's License, Passport, National ID</Text>
+          </>
+        )}
       </TouchableOpacity>
 
       <Text style={styles.label}>Proof of Property Ownership *</Text>
-      <TouchableOpacity style={styles.upload} onPress={() => pickFile(setOwnershipFile)}>
-        <Text style={styles.uploadText}>{ownershipFile ? ownershipFile.name : "Land title, tax declaration (max 10MB)"}</Text>
+      <TouchableOpacity
+        style={[styles.upload, ownershipFile && styles.uploadDone]}
+        onPress={() => pickDocumentImage(setOwnershipFile)}
+      >
+        {ownershipFile ? (
+          <View style={styles.docPreviewRow}>
+            <Image source={{ uri: ownershipFile.uri }} style={styles.docPreview} />
+            <View style={styles.docPreviewInfo}>
+              <Text style={styles.docPreviewDone}>✓ Ownership Doc Uploaded</Text>
+              <Text style={styles.docPreviewChange}>Tap to change</Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.uploadText}>📷  Tap to upload Ownership Document</Text>
+            <Text style={styles.hint}>JPG, PNG — Land title, tax declaration</Text>
+          </>
+        )}
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Property Details</Text>
@@ -344,20 +507,31 @@ export default function OwnerApply() {
       </View>
 
       <Text style={styles.label}>Property Images</Text>
-      <TouchableOpacity style={styles.upload} onPress={() => pickFile((f: any) => setPropertyImages([...propertyImages, f]))}>
-        <Text style={styles.uploadText}>
-          {propertyImages.length > 0 ? `${propertyImages.length} image(s) selected` : "Click to upload property images"}
-        </Text>
-        <Text style={styles.hint}>JPG, PNG (max 10MB each)</Text>
+      <TouchableOpacity style={styles.upload} onPress={pickPropertyImage}>
+        <Text style={styles.uploadText}>+ Add Property Photos</Text>
+        <Text style={styles.hint}>JPG, PNG — tap to select from gallery</Text>
       </TouchableOpacity>
+
+      {propertyImages.length > 0 && (
+        <View style={styles.imagePreviewRow}>
+          {propertyImages.map((img, index) => (
+            <View key={index} style={styles.imagePreviewWrapper}>
+              <Image source={{ uri: img.uri }} style={styles.imagePreview} />
+              <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(index)}>
+                <Text style={styles.removeImageText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={styles.rowCenter}>
         <Switch value={agree} onValueChange={setAgree} />
         <Text style={styles.agreeText}> I agree to the terms and conditions and management contract. I certify that all information provided is accurate and I am the legal owner of the property.</Text>
       </View>
 
-      <TouchableOpacity style={[styles.button, !agree && styles.buttonDisabled]} onPress={submit} disabled={!agree}>
-        <Text style={styles.buttonText}>Submit Application</Text>
+      <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={submit} disabled={isSubmitting}>
+        <Text style={styles.buttonText}>{isSubmitting ? "Saving..." : editId ? "Save Changes" : "Submit Application"}</Text>
       </TouchableOpacity>
 
       <View style={styles.whatsNext}>
@@ -395,8 +569,19 @@ const styles = StyleSheet.create({
   quickSelectButtonTextActive: { color: "#fff" },
   textArea: { minHeight: 100, textAlignVertical: "top" },
   upload: { borderWidth: 1, borderColor: "#ddd", padding: 12, borderRadius: 6, marginTop: 6 },
+  uploadDone: { borderColor: "#4CAF50", backgroundColor: "#f0fff4" },
   uploadText: { fontSize: 14 },
   hint: { fontSize: 12, color: "#666", marginTop: 6 },
+  docPreviewRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  docPreview: { width: 64, height: 64, borderRadius: 6, backgroundColor: "#eee" },
+  docPreviewInfo: { flex: 1 },
+  docPreviewDone: { fontSize: 14, fontWeight: "700", color: "#4CAF50" },
+  docPreviewChange: { fontSize: 12, color: "#888", marginTop: 2 },
+  imagePreviewRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  imagePreviewWrapper: { position: "relative" },
+  imagePreview: { width: 90, height: 90, borderRadius: 8, backgroundColor: "#eee" },
+  removeImageBtn: { position: "absolute", top: -6, right: -6, backgroundColor: "#ff3b30", borderRadius: 10, width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  removeImageText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   rowCenter: { flexDirection: "row", alignItems: "center", marginTop: 12 },
   agreeText: { flex: 1, marginLeft: 8, fontSize: 13 },
   amenityText: { marginLeft: 8, fontSize: 14 },

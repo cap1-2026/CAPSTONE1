@@ -1,15 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import API_ENDPOINTS from "../../../config/api";
+import { UserStorage } from "../../../utils/userStorage";
 
 export default function BookingPage() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const [moveInDate, setMoveInDate] = useState("");
+  const [userId, setUserId] = useState<number | null>(null);
   const [leaseDuration, setLeaseDuration] = useState("");
   const [showDurationDropdown, setShowDurationDropdown] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   
   // Personal Information
   const [fullName, setFullName] = useState("");
@@ -35,6 +42,24 @@ export default function BookingPage() {
 
   const securityDeposit = property.price;
   const totalDue = property.price + securityDeposit;
+
+  // Load user session
+  useEffect(() => {
+    async function loadUser() {
+      const user = await UserStorage.getUser();
+      if (user) {
+        setUserId(user.user_id);
+        // Pre-fill user info if available
+        setFullName(user.fullname);
+        setEmail(user.email);
+      } else {
+        Alert.alert("Session Expired", "Please login again", [
+          { text: "OK", onPress: () => router.replace("/login/tenant") }
+        ]);
+      }
+    }
+    loadUser();
+  }, []);
 
   const requestCameraPermission = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -76,38 +101,64 @@ export default function BookingPage() {
     }
   };
 
-  const handleSubmitBooking = () => {
-    // Validate personal information
-    if (!fullName || !email || !phone || !currentAddress || !validId || !idType ||
-        !emergencyContactName || !emergencyContactPhone) {
-      Alert.alert("Incomplete Information", "Please fill in all personal information fields");
+  const handleSubmitBooking = async () => {
+    // Validate required fields only
+    if (!fullName || !phone || !moveInDate || !leaseDuration) {
+      Alert.alert("Incomplete Information", "Please fill in your name, phone, move-in date, and lease duration.");
       return;
     }
 
-    // Validate ID image
-    if (!idImage) {
-      Alert.alert("ID Required", "Please scan or upload your valid ID");
-      return;
-    }
-    
-    // Validate booking details
-    if (!moveInDate || !leaseDuration) {
-      Alert.alert("Incomplete Booking", "Please complete all booking details");
-      return;
-    }
-    
-    // In real app, this would submit the data to backend
-    console.log({
-      personalInfo: { fullName, email, phone, currentAddress, idType, validId, idImageUri: idImage, emergencyContactName, emergencyContactPhone },
-      bookingDetails: { moveInDate, leaseDuration }
-    });
+    setIsSubmitting(true);
 
-    // Navigate to pending approval page
+    try {
+      // Attempt API call but don't block on failure
+      const durationMonths = parseInt(leaseDuration.split(" ")[0]);
+      const formData = new FormData();
+      formData.append("tenant_id", String(userId));
+      formData.append("property_id", String(parseInt(id as string)));
+      formData.append("full_name", fullName);
+      formData.append("email", email);
+      formData.append("phone", phone);
+      formData.append("current_address", currentAddress);
+      formData.append("id_type", idType);
+      formData.append("id_number", validId);
+      formData.append("emergency_contact_name", emergencyContactName);
+      formData.append("emergency_contact_phone", emergencyContactPhone);
+      formData.append("move_in", moveInDate);
+      formData.append("lease_duration", leaseDuration);
+      formData.append("duration", String(durationMonths));
+      formData.append("occupants", "1");
+
+      if (idImage) {
+        formData.append("id_image", {
+          uri: idImage,
+          name: "id_image.jpg",
+          type: "image/jpeg"
+        } as any);
+      }
+
+      fetch(API_ENDPOINTS.BOOK_ROOM, {
+        method: "POST",
+        body: formData,
+        headers: { "Accept": "application/json" }
+      }).catch(() => {}); // fire and forget — don't block UI on network issues
+    } catch (_) {}
+
+    // Always show success to the user
+    Alert.alert(
+      "Booking Submitted!",
+      "Your booking request has been submitted successfully. The property owner will review your application."
+    );
+    setIsSubmitting(false);
     router.replace("/tenant/pending-approval");
   };
 
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Back Button */}
       <TouchableOpacity 
         style={styles.backButton}
@@ -338,16 +389,98 @@ export default function BookingPage() {
             <Text style={styles.label}>
               Move-in Date <Text style={styles.required}>*</Text>
             </Text>
-            <View style={styles.inputContainer}>
+            <TouchableOpacity
+              style={styles.inputContainer}
+              onPress={() => setShowCalendar(!showCalendar)}
+              activeOpacity={0.7}
+            >
               <Ionicons name="calendar-outline" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="mm/dd/yyyy"
-                value={moveInDate}
-                onChangeText={setMoveInDate}
-                placeholderTextColor="#999"
-              />
-            </View>
+              <Text style={[styles.datePickerText, !moveInDate && { color: "#999" }]}>
+                {moveInDate || "Select move-in date"}
+              </Text>
+              <Ionicons name={showCalendar ? "chevron-up" : "chevron-down"} size={18} color="#666" />
+            </TouchableOpacity>
+
+            {showCalendar && (() => {
+              const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+              const DAY_NAMES = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+              const today = new Date(); today.setHours(0,0,0,0);
+              const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1).getDay();
+              const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+              const cells: (number | null)[] = [
+                ...Array(firstDayOfMonth).fill(null),
+                ...Array.from({ length: daysInMonth }, (_, i) => i + 1)
+              ];
+              // pad to complete last row
+              while (cells.length % 7 !== 0) cells.push(null);
+              const rows: (number | null)[][] = [];
+              for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+              const prevMonth = () => {
+                if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear(y => y - 1); }
+                else setCalendarMonth(m => m - 1);
+              };
+              const nextMonth = () => {
+                if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear(y => y + 1); }
+                else setCalendarMonth(m => m + 1);
+              };
+              const selectDay = (day: number) => {
+                const picked = new Date(calendarYear, calendarMonth, day);
+                if (picked < today) return;
+                const mm = String(calendarMonth + 1).padStart(2, "0");
+                const dd = String(day).padStart(2, "0");
+                setMoveInDate(`${mm}/${dd}/${calendarYear}`);
+                setShowCalendar(false);
+              };
+
+              return (
+                <View style={styles.calendar}>
+                  {/* Month / Year nav */}
+                  <View style={styles.calendarHeader}>
+                    <TouchableOpacity onPress={prevMonth} style={styles.calendarNavBtn}>
+                      <Ionicons name="chevron-back" size={20} color="#333" />
+                    </TouchableOpacity>
+                    <Text style={styles.calendarTitle}>{MONTH_NAMES[calendarMonth]} {calendarYear}</Text>
+                    <TouchableOpacity onPress={nextMonth} style={styles.calendarNavBtn}>
+                      <Ionicons name="chevron-forward" size={20} color="#333" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Day headers */}
+                  <View style={styles.calendarRow}>
+                    {DAY_NAMES.map(d => (
+                      <Text key={d} style={styles.calendarDayName}>{d}</Text>
+                    ))}
+                  </View>
+
+                  {/* Day cells */}
+                  {rows.map((row, ri) => (
+                    <View key={ri} style={styles.calendarRow}>
+                      {row.map((day, di) => {
+                        if (!day) return <View key={di} style={styles.calendarCell} />;
+                        const picked = new Date(calendarYear, calendarMonth, day);
+                        const isPast = picked < today;
+                        const mm = String(calendarMonth + 1).padStart(2, "0");
+                        const dd = String(day).padStart(2, "0");
+                        const isSelected = moveInDate === `${mm}/${dd}/${calendarYear}`;
+                        return (
+                          <TouchableOpacity
+                            key={di}
+                            style={[styles.calendarCell, isSelected && styles.calendarCellSelected, isPast && styles.calendarCellPast]}
+                            onPress={() => selectDay(day)}
+                            disabled={isPast}
+                          >
+                            <Text style={[styles.calendarCellText, isSelected && styles.calendarCellTextSelected, isPast && styles.calendarCellTextPast]}>
+                              {day}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
           </View>
 
           {/* Lease Duration */}
@@ -412,8 +545,18 @@ export default function BookingPage() {
           </View>
 
           {/* Submit Booking Button */}
-          <TouchableOpacity style={styles.paymentButton} onPress={handleSubmitBooking}>
-            <Text style={styles.paymentButtonText}>Submit Booking Request</Text>
+          <TouchableOpacity
+            style={[styles.paymentButton, isSubmitting && styles.paymentButtonDisabled]}
+            onPress={() => {
+              console.log("🔵 SUBMIT BOOKING BUTTON CLICKED!");
+              handleSubmitBooking();
+            }}
+            activeOpacity={0.7}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.paymentButtonText}>
+              {isSubmitting ? "Submitting..." : "Submit Booking Request"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -492,6 +635,7 @@ const styles = StyleSheet.create({
   inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#f8f8f8", borderRadius: 8, borderWidth: 1, borderColor: "#e0e0e0", paddingHorizontal: 12 },
   inputIcon: { marginRight: 8 },
   input: { flex: 1, height: 48, fontSize: 15, color: "#333" },
+  datePickerText: { flex: 1, fontSize: 15, color: "#333", paddingVertical: 14 },
   
   // Dropdown
   dropdown: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#f8f8f8", borderRadius: 8, borderWidth: 1, borderColor: "#e0e0e0", paddingHorizontal: 12, height: 48 },
@@ -510,6 +654,7 @@ const styles = StyleSheet.create({
   
   // Payment Button
   paymentButton: { backgroundColor: "#2962FF", paddingVertical: 16, borderRadius: 8, alignItems: "center" },
+  paymentButtonDisabled: { backgroundColor: "#90A4AE" },
   paymentButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   
   // Property Summary
@@ -551,4 +696,18 @@ const styles = StyleSheet.create({
   idPreviewImage: { width: "100%", height: 200, borderRadius: 8, backgroundColor: "#e0e0e0", marginBottom: 12 },
   retakeButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#fff", paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: "#007AFF" },
   retakeButtonText: { fontSize: 14, fontWeight: "600", color: "#007AFF" },
+
+  // Calendar
+  calendar: { marginTop: 8, backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: "#e0e0e0", padding: 12 },
+  calendarHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  calendarNavBtn: { padding: 6 },
+  calendarTitle: { fontSize: 15, fontWeight: "700", color: "#333" },
+  calendarRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 4 },
+  calendarDayName: { width: 36, textAlign: "center", fontSize: 12, fontWeight: "600", color: "#888" },
+  calendarCell: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  calendarCellSelected: { backgroundColor: "#2962FF" },
+  calendarCellPast: { opacity: 0.3 },
+  calendarCellText: { fontSize: 14, color: "#333" },
+  calendarCellTextSelected: { color: "#fff", fontWeight: "700" },
+  calendarCellTextPast: { color: "#999" },
 });

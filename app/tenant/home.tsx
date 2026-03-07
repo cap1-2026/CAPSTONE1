@@ -42,7 +42,12 @@ export default function TenantHome() {
     <View style={{ flex: 1 }}>
       {/* Header */}
       <View style={styles.headerBar}>
-        <Text style={styles.headerTitle}>PropertyPro</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <MaterialCommunityIcons name="arrow-left" size={22} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>PropertyPro</Text>
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity onPress={() => router.push("/tenant/dashboard")} style={styles.iconBtn}>
             <MaterialCommunityIcons name="view-dashboard-outline" size={22} color="#333" />

@@ -2,28 +2,80 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import API_ENDPOINTS from "../../config/api";
+import { UserStorage } from "../../utils/userStorage";
 
 export default function RoleLogin() {
   const { role } = useLocalSearchParams() as { role?: string };
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const displayRole = role === "owner" ? "Property Owner" : "Tenant";
   const roleColor = role === "owner" ? "#1565D8" : "#007AFF";
 
-  function handleLogin() {
-    if (!username || !password) {
-      Alert.alert("Validation", "Please enter username and password");
+  async function handleLogin() {
+    if (!email || !password) {
+      Alert.alert("Validation", "Please enter email and password");
       return;
     }
 
-    // Mock authentication: in real app call API and validate role
-    const r = (role || "tenant") as "tenant" | "owner";
-    const target: "/tenant/home" | "/owner/home" =
-      r === "tenant" ? "/tenant/home" : "/owner/home";
-    router.replace(target);
+    try {
+      console.log("Attempting login with email:", email);
+
+      const response = await fetch(
+        API_ENDPOINTS.LOGIN,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email: email,
+            password: password
+          })
+        }
+      );
+
+      console.log("Response status:", response.status);
+      const data = await response.json();
+      console.log("Response data:", data);
+
+      if (data.status === "success") {
+        // Verify role matches
+        if (data.role !== role) {
+          Alert.alert("Error", `This account is registered as a ${data.role}. Please use the correct login page.`);
+          return;
+        }
+
+        // Store user session
+        await UserStorage.saveUser({
+          user_id: data.user_id,
+          email: data.email,
+          fullname: data.fullname,
+          role: data.role
+        });
+        
+        console.log("Login successful:", data);
+        
+        Alert.alert("Success", `Welcome back, ${data.fullname || email}!`);
+
+        // Navigate based on role
+        if (data.role === "owner") {
+          router.replace("/owner/home");
+        } else {
+          router.replace("/tenant/home");
+        }
+
+      } else {
+        Alert.alert("Login Failed", data.message || "Invalid credentials");
+      }
+
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Server Error", "Cannot connect to server. Please check your backend is running.");
+    }
   }
 
   return (
@@ -34,6 +86,14 @@ export default function RoleLogin() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Hero Header */}
         <View style={[styles.header, { backgroundColor: roleColor }]}>
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          
           <View style={styles.headerContent}>
             <View style={styles.logoContainer}>
               <Ionicons name="home" size={40} color="#fff" />
@@ -53,17 +113,18 @@ export default function RoleLogin() {
             <Text style={styles.roleText}>Login as {displayRole}</Text>
           </View>
 
-          {/* Username Input */}
+          {/* Email Input */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Username</Text>
+            <Text style={styles.inputLabel}>Email</Text>
             <View style={styles.inputWrapper}>
-              <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+              <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
-                placeholder="Enter your username"
-                value={username}
-                onChangeText={setUsername}
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
                 style={styles.input}
                 autoCapitalize="none"
+                keyboardType="email-address"
                 placeholderTextColor="#999"
               />
             </View>
@@ -135,6 +196,7 @@ const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: "#f5f7fa" },
   container: { flexGrow: 1 },
   header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 20, position: "relative" },
+  backButton: { position: "absolute", top: 50, left: 20, zIndex: 10, padding: 8 },
   headerContent: { alignItems: "center", zIndex: 1 },
   logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
   logoText: { fontSize: 36, fontWeight: "800", color: "#fff" },

@@ -1,12 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import API_ENDPOINTS from "../../config/api";
 
 export default function RoleRegister() {
   const { role } = useLocalSearchParams() as { role?: string };
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [fullname, setFullname] = useState("");
+  const [address, setAddress] = useState("");
+  const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -16,32 +19,120 @@ export default function RoleRegister() {
   const displayRole = role === "owner" ? "Property Owner" : "Tenant";
   const roleColor = role === "owner" ? "#1565D8" : "#007AFF";
 
-  function handleRegister() {
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Validation", "Please fill all fields");
+  async function handleRegister() {
+    console.log("=== REGISTER BUTTON CLICKED ===");
+    console.log("Fullname:", fullname);
+    console.log("Address:", address);
+    console.log("Contact:", contact);
+    console.log("Email:", email);
+    console.log("Password length:", password.length);
+    console.log("Confirm Password length:", confirmPassword.length);
+
+    if (!fullname || !address || !contact || !email || !password || !confirmPassword) {
+      const missing = [];
+      if (!fullname) missing.push("Full Name");
+      if (!address) missing.push("Address");
+      if (!contact) missing.push("Contact");
+      if (!email) missing.push("Email");
+      if (!password) missing.push("Password");
+      if (!confirmPassword) missing.push("Confirm Password");
+      
+      console.log("Missing fields:", missing);
+      Alert.alert("Validation", `Please fill all fields. Missing: ${missing.join(", ")}`);
       return;
     }
 
     if (password !== confirmPassword) {
+      console.log("Passwords do not match");
       Alert.alert("Validation", "Passwords do not match");
       return;
     }
 
-    // Mock registration: in a real app call API to create user and return success
-    Alert.alert("Success", `Account created for ${displayRole}`);
-    const r = (role || "tenant") as "tenant" | "owner";
-    const target: "/tenant/home" | "/owner/home" = r === "tenant" ? "/tenant/home" : "/owner/home";
-    router.replace(target);
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.log("Invalid email format");
+      Alert.alert("Validation", "Please enter a valid email address");
+      return;
+    }
+
+    try {
+      console.log("Attempting registration...");
+      console.log("API URL:", API_ENDPOINTS.REGISTER);
+
+      const requestBody = {
+        fullname,
+        address,
+        contact,
+        email,
+        password,
+        role
+      };
+      console.log("Request body:", JSON.stringify(requestBody, null, 2));
+
+      const response = await fetch(API_ENDPOINTS.REGISTER, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log("Response status:", response.status);
+      const responseText = await response.text();
+      console.log("Response text:", responseText);
+      
+      const data = JSON.parse(responseText);
+      console.log("Response data:", data);
+
+      if (data.status === "success") {
+        console.log("✅ REGISTRATION SUCCESS - Showing alert");
+        const targetPage = role === "owner" ? "/owner/home" : "/tenant/home";
+        Alert.alert(
+          "Success", 
+          "Account created successfully! You will be redirected to your home page.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                console.log("Navigating to", targetPage);
+                router.replace(targetPage);
+              }
+            }
+          ]
+        );
+      } else {
+        console.log("❌ REGISTRATION FAILED - Showing error alert");
+        console.log("Error message:", data.message);
+        Alert.alert("Registration Failed", data.message || "Could not create account");
+      }
+
+    } catch (error) {
+      console.error("Registration error:", error);
+      console.log("⚠️ SERVER ERROR - Showing error alert");
+      Alert.alert("Server Error", "Cannot connect to server. Please check your backend is running.");
+    }
   }
 
   return (
     <KeyboardAvoidingView 
       style={styles.wrapper} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView 
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="always"
+      >
         {/* Hero Header */}
         <View style={[styles.header, { backgroundColor: roleColor }]}>
+          {/* Back Button */}
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          
           <View style={styles.headerContent}>
             <View style={styles.logoContainer}>
               <Ionicons name="home" size={40} color="#fff" />
@@ -68,9 +159,40 @@ export default function RoleRegister() {
               <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
               <TextInput
                 placeholder="Enter your full name"
-                value={name}
-                onChangeText={setName}
+                value={fullname}
+                onChangeText={setFullname}
                 style={styles.input}
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
+
+          {/* Address Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Address</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="home-outline" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                placeholder="Enter your address"
+                value={address}
+                onChangeText={setAddress}
+                style={styles.input}
+                placeholderTextColor="#999"
+              />
+            </View>
+          </View>
+
+          {/* Contact Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Contact Number</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                placeholder="Enter your contact number"
+                value={contact}
+                onChangeText={setContact}
+                style={styles.input}
+                keyboardType="phone-pad"
                 placeholderTextColor="#999"
               />
             </View>
@@ -140,20 +262,9 @@ export default function RoleRegister() {
           {/* Terms & Conditions */}
           <View style={styles.termsContainer}>
             <Text style={styles.termsText}>
-              By registering, you agree to our{" "}
-              <Text style={[styles.termsLink, { color: roleColor }]}>Terms & Conditions</Text>
-              {" "}and{" "}
-              <Text style={[styles.termsLink, { color: roleColor }]}>Privacy Policy</Text>
+              By registering, you agree to our Terms & Conditions and Privacy Policy
             </Text>
           </View>
-
-          {/* Register Button */}
-          <TouchableOpacity 
-            style={[styles.registerButton, { backgroundColor: roleColor }]}
-            onPress={handleRegister}
-          >
-            <Text style={styles.registerButtonText}>Create Account</Text>
-          </TouchableOpacity>
 
           {/* Divider */}
           <View style={styles.divider}>
@@ -173,6 +284,26 @@ export default function RoleRegister() {
           </TouchableOpacity>
         </View>
 
+        {/* Register Button */}
+        <Pressable 
+          style={({ pressed }) => ({
+            paddingVertical: 16,
+            borderRadius: 12,
+            alignItems: 'center',
+            marginHorizontal: 20,
+            marginTop: -10,
+            marginBottom: 20,
+            backgroundColor: pressed ? '#0056b3' : roleColor,
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+          })}
+          onPress={() => {
+            console.log("🟢 CREATE ACCOUNT PRESSED!");
+            handleRegister();
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Create Account</Text>
+        </Pressable>
+
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>© 2026 PadFinder. All rights reserved.</Text>
@@ -184,8 +315,9 @@ export default function RoleRegister() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: "#f5f7fa" },
-  container: { flexGrow: 1 },
+  container: { flexGrow: 1, paddingBottom: 50 },
   header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 20, position: "relative" },
+  backButton: { position: "absolute", top: 50, left: 20, zIndex: 10, padding: 8 },
   headerContent: { alignItems: "center", zIndex: 1 },
   logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
   logoText: { fontSize: 36, fontWeight: "800", color: "#fff" },

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Slot, Stack, useRouter, useSegments } from "expo-router";
+import { Slot, useRouter, useSegments } from "expo-router";
 import React, { useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -47,9 +47,7 @@ export default function OwnerLayout() {
         </View>
       </View>
 
-      <Stack screenOptions={{ headerShown: false }}>
-        <Slot />
-      </Stack>
+      <Slot />
 
       <Modal visible={open} animationType="none" transparent>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>

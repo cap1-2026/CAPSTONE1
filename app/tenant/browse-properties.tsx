@@ -1,15 +1,36 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Modal } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import API_ENDPOINTS, { API_BASE_URL } from "../../config/api";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function BrowseProperties() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const propertyTypeParam = params.type as string || "All";
 
+  const [loading, setLoading] = useState(true);
+  const [allProperties, setAllProperties] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("list"); // list or grid
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    fetchProperties();
+  }, []);
+
+  async function fetchProperties() {
+    try {
+      const response = await fetch(API_ENDPOINTS.GET_PROPERTIES);
+      const data = await response.json();
+      if (data.status === "success") {
+        setAllProperties(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to load properties:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
   
   // Filter states
   const [selectedPropertyType, setSelectedPropertyType] = useState("All");
@@ -30,116 +51,37 @@ export default function BrowseProperties() {
   const bedroomOptions = ["All", "Studio", "1", "2", "3", "4+"];
   const bathroomOptions = ["All", "1", "2", "3+"];
 
-  // Sample property data
-  const properties = [
-    {
-      id: 1,
-      type: "Apartment",
-      name: "Cozy Studio Near Mall",
-      address: "777 Shaw Blvd, Mandaluyong",
-      bedrooms: 1,
-      bathrooms: 1,
-      sqm: 30,
-      price: 10000,
-      amenities: ["WiFi"],
-      available: true,
-      image: "https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=Property+1",
-    },
-    {
-      id: 2,
-      type: "Condominium",
-      name: "Luxury Condo Unit",
-      address: "321 Ayala Ave, Makati City",
-      bedrooms: 3,
-      bathrooms: 2,
-      sqm: 120,
-      price: 35000,
-      amenities: ["WiFi", "AC", "Parking", "+3 more"],
-      available: true,
-      image: "https://via.placeholder.com/400x300/2196F3/FFFFFF?text=Property+2",
-    },
-    {
-      id: 3,
-      type: "Apartment",
-      name: "Modern Studio Unit",
-      address: "555 Ortigas, Pasig City",
-      bedrooms: 1,
-      bathrooms: 1,
-      sqm: 35,
-      price: 12000,
-      amenities: ["WiFi", "AC"],
-      available: true,
-      image: "https://via.placeholder.com/400x300/FF9800/FFFFFF?text=Property+3",
-    },
-    {
-      id: 4,
-      type: "Condominium",
-      name: "Family Condo Unit",
-      address: "123 Taguig Ave, Taguig City",
-      bedrooms: 2,
-      bathrooms: 2,
-      sqm: 80,
-      price: 25000,
-      amenities: ["WiFi", "AC", "Parking"],
-      available: true,
-      image: "https://via.placeholder.com/400x300/9C27B0/FFFFFF?text=Property+4",
-    },
-    {
-      id: 5,
-      type: "Dormitory",
-      name: "Student Dorm Room",
-      address: "456 Espana, Manila",
-      bedrooms: 1,
-      bathrooms: 1,
-      sqm: 15,
-      price: 5000,
-      amenities: ["WiFi"],
-      available: true,
-      image: "https://via.placeholder.com/400x300/F44336/FFFFFF?text=Property+5",
-    },
-    {
-      id: 6,
-      type: "Apartment",
-      name: "Spacious 2BR Apartment",
-      address: "789 Quezon Ave, Quezon City",
-      bedrooms: 2,
-      bathrooms: 1,
-      sqm: 55,
-      price: 18000,
-      amenities: ["WiFi", "Parking"],
-      available: true,
-      image: "https://via.placeholder.com/400x300/00BCD4/FFFFFF?text=Property+6",
-    },
-  ];
+  const filteredProperties = allProperties.filter((prop) => {
+    const matchesSearch = (prop.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (prop.address || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = propertyTypeParam === "All" || prop.property_type === propertyTypeParam;
 
-  const filteredProperties = properties.filter((prop) => {
-    const matchesSearch = prop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         prop.address.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = propertyTypeParam === "All" || prop.type === propertyTypeParam;
-    
     // Apply filters
-    const matchesPropertyType = selectedPropertyType === "All" || prop.type === selectedPropertyType;
-    
+    const matchesPropertyType = selectedPropertyType === "All" || prop.property_type === selectedPropertyType;
+
     let matchesPriceRange = true;
-    if (selectedPriceRange === "Under ₱10,000") matchesPriceRange = prop.price < 10000;
-    else if (selectedPriceRange === "₱10,000 - ₱20,000") matchesPriceRange = prop.price >= 10000 && prop.price <= 20000;
-    else if (selectedPriceRange === "₱20,000 - ₱30,000") matchesPriceRange = prop.price >= 20000 && prop.price <= 30000;
-    else if (selectedPriceRange === "Above ₱30,000") matchesPriceRange = prop.price > 30000;
-    
-    const matchesBedrooms = selectedBedrooms === "All" || 
-                           (selectedBedrooms === "4+" ? prop.bedrooms >= 4 : prop.bedrooms.toString() === selectedBedrooms);
-    
-    const matchesBathrooms = selectedBathrooms === "All" || 
-                            (selectedBathrooms === "3+" ? prop.bathrooms >= 3 : prop.bathrooms.toString() === selectedBathrooms);
-    
-    // Check amenities
+    const price = parseFloat(prop.price) || 0;
+    if (selectedPriceRange === "Under ₱10,000") matchesPriceRange = price < 10000;
+    else if (selectedPriceRange === "₱10,000 - ₱20,000") matchesPriceRange = price >= 10000 && price <= 20000;
+    else if (selectedPriceRange === "₱20,000 - ₱30,000") matchesPriceRange = price >= 20000 && price <= 30000;
+    else if (selectedPriceRange === "Above ₱30,000") matchesPriceRange = price > 30000;
+
+    const rooms = parseInt(prop.rooms) || 0;
+    const matchesBedrooms = selectedBedrooms === "All" ||
+                           (selectedBedrooms === "4+" ? rooms >= 4 : rooms.toString() === selectedBedrooms);
+
+    // Check amenities (stored as string in DB)
+    const amenityStr = (prop.amenities || '').toLowerCase();
     let matchesAmenities = true;
-    if (amenityFilters.wifi && !prop.amenities.includes("WiFi")) matchesAmenities = false;
-    if (amenityFilters.ac && !prop.amenities.includes("AC")) matchesAmenities = false;
-    if (amenityFilters.parking && !prop.amenities.includes("Parking")) matchesAmenities = false;
-    
-    return matchesSearch && matchesType && matchesPropertyType && matchesPriceRange && 
-           matchesBedrooms && matchesBathrooms && matchesAmenities;
+    if (amenityFilters.wifi && !amenityStr.includes('wifi')) matchesAmenities = false;
+    if (amenityFilters.ac && !amenityStr.includes('ac') && !amenityStr.includes('air con')) matchesAmenities = false;
+    if (amenityFilters.parking && !amenityStr.includes('parking')) matchesAmenities = false;
+    if (amenityFilters.furnished && !amenityStr.includes('furnished')) matchesAmenities = false;
+    if (amenityFilters.security && !amenityStr.includes('security') && !amenityStr.includes('guard')) matchesAmenities = false;
+    if (amenityFilters.elevator && !amenityStr.includes('elevator')) matchesAmenities = false;
+
+    return matchesSearch && matchesType && matchesPropertyType && matchesPriceRange &&
+           matchesBedrooms && matchesAmenities;
   });
 
   return (
@@ -454,65 +396,108 @@ export default function BrowseProperties() {
       </Modal>
 
       <View style={styles.propertiesList}>
-        {filteredProperties.map((property) => (
-          <View key={property.id} style={styles.propertyCard}>
-            <View style={styles.imageContainer}>
-              <View style={styles.imagePlaceholder}>
-                <Text style={styles.imagePlaceholderText}>🏢</Text>
-              </View>
-              <View style={styles.badges}>
-                <View style={styles.typeBadge}>
-                  <Text style={styles.typeBadgeText}>{property.type}</Text>
-                </View>
-                {property.available && (
-                  <View style={styles.availableBadge}>
-                    <Text style={styles.availableBadgeText}>Available</Text>
-                  </View>
-                )}
-              </View>
-              <TouchableOpacity style={styles.favoriteButton}>
-                <Text style={styles.favoriteIcon}>♡</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.propertyInfo}>
-              <Text style={styles.propertyName}>{property.name}</Text>
-              <View style={styles.addressRow}>
-                <Text style={styles.locationIcon}>📍</Text>
-                <Text style={styles.address}>{property.address}</Text>
-              </View>
-
-              <View style={styles.specs}>
-                <Text style={styles.specItem}>{property.bedrooms} BR</Text>
-                <Text style={styles.specDivider}>•</Text>
-                <Text style={styles.specItem}>{property.bathrooms} BA</Text>
-                <Text style={styles.specDivider}>•</Text>
-                <Text style={styles.specItem}>{property.sqm} sqm</Text>
-              </View>
-
-              <View style={styles.amenitiesRow}>
-                {property.amenities.map((amenity, index) => (
-                  <View key={index} style={styles.amenityTag}>
-                    <Text style={styles.amenityText}>{amenity}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.footer}>
-                <View>
-                  <Text style={styles.price}>₱{property.price.toLocaleString()}</Text>
-                  <Text style={styles.priceLabel}>per month</Text>
-                </View>
-                <TouchableOpacity 
-                  style={styles.viewDetailsButton}
-                  onPress={() => router.push(`/tenant/property/${property.id}` as any)}
-                >
-                  <Text style={styles.viewDetailsText}>View Details</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+        {loading ? (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <ActivityIndicator size="large" color="#1a73e8" />
+            <Text style={{ marginTop: 12, color: "#666" }}>Loading properties...</Text>
           </View>
-        ))}
+        ) : filteredProperties.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <Text style={{ fontSize: 18, fontWeight: "600", color: "#333", marginBottom: 8 }}>No properties found</Text>
+            <Text style={{ fontSize: 14, color: "#888", textAlign: "center" }}>Try adjusting your filters or search query.</Text>
+          </View>
+        ) : (
+          filteredProperties.map((property) => {
+            const amenityList = property.amenities
+              ? property.amenities.split(',').map((a: string) => a.trim()).filter(Boolean)
+              : [];
+            const priceNum = parseFloat(property.price) || 0;
+            const imageUri = property.first_image
+              ? `${API_BASE_URL}/${property.first_image}`
+              : null;
+            return (
+              <View key={property.id} style={styles.propertyCard}>
+                <View style={styles.imageContainer}>
+                  {/* 🏢 placeholder always shown as grey background */}
+                  <View style={styles.imagePlaceholder}>
+                    <Text style={styles.imagePlaceholderText}>🏢</Text>
+                  </View>
+                  {/* Real image overlaid on top — covers placeholder when loaded */}
+                  {imageUri ? (
+                    <Image
+                      source={{ uri: imageUri }}
+                      style={styles.propertyImage}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+                  <View style={styles.badges}>
+                    <View style={styles.typeBadge}>
+                      <Text style={styles.typeBadgeText}>{property.property_type || "Property"}</Text>
+                    </View>
+                    <View style={styles.availableBadge}>
+                      <Text style={styles.availableBadgeText}>Available</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity style={styles.favoriteButton}>
+                    <Text style={styles.favoriteIcon}>♡</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.propertyInfo}>
+                  <Text style={styles.propertyName}>{property.name}</Text>
+                  <View style={styles.addressRow}>
+                    <Text style={styles.locationIcon}>📍</Text>
+                    <Text style={styles.address}>{property.address}</Text>
+                  </View>
+
+                  <View style={styles.specs}>
+                    <Text style={styles.specItem}>{property.rooms || 1} Room{parseInt(property.rooms) !== 1 ? "s" : ""}</Text>
+                    {property.room_size ? (
+                      <>
+                        <Text style={styles.specDivider}>•</Text>
+                        <Text style={styles.specItem}>{property.room_size}</Text>
+                      </>
+                    ) : null}
+                    {property.max_occupants ? (
+                      <>
+                        <Text style={styles.specDivider}>•</Text>
+                        <Text style={styles.specItem}>Max {property.max_occupants} pax</Text>
+                      </>
+                    ) : null}
+                  </View>
+
+                  {amenityList.length > 0 && (
+                    <View style={styles.amenitiesRow}>
+                      {amenityList.slice(0, 4).map((amenity: string, index: number) => (
+                        <View key={index} style={styles.amenityTag}>
+                          <Text style={styles.amenityText}>{amenity}</Text>
+                        </View>
+                      ))}
+                      {amenityList.length > 4 && (
+                        <View style={styles.amenityTag}>
+                          <Text style={styles.amenityText}>+{amenityList.length - 4} more</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  <View style={styles.footer}>
+                    <View>
+                      <Text style={styles.price}>₱{priceNum.toLocaleString()}</Text>
+                      <Text style={styles.priceLabel}>per month</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.viewDetailsButton}
+                      onPress={() => router.push({ pathname: "/tenant/booking/[id]", params: { id: property.id } } as any)}
+                    >
+                      <Text style={styles.viewDetailsText}>Book Now</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            );
+          })
+        )}
       </View>
     </ScrollView>
   );
@@ -543,8 +528,9 @@ const styles = StyleSheet.create({
   filterChipClose: { color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 2 },
   propertiesList: { padding: 12, gap: 12 },
   propertyCard: { backgroundColor: "#fff", borderRadius: 12, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  imageContainer: { position: "relative", height: 180 },
-  imagePlaceholder: { width: "100%", height: "100%", backgroundColor: "#e0e0e0", justifyContent: "center", alignItems: "center" },
+  imageContainer: { position: "relative", height: 180, overflow: "hidden", backgroundColor: "#e0e0e0" },
+  imagePlaceholder: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center", alignItems: "center" },
+  propertyImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   imagePlaceholderText: { fontSize: 50 },
   badges: { position: "absolute", top: 10, left: 10, gap: 6 },
   typeBadge: { backgroundColor: "#1a73e8", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
