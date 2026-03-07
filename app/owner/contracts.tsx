@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const CONTRACTS = [
   { id: 'c1', tenant: 'Juan Dela Cruz', unit: '101', start: '2024-11-01', end: '2025-11-01', status: 'Active' },
