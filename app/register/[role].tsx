@@ -15,6 +15,8 @@ export default function RoleRegister() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   const displayRole = role === "owner" ? "Property Owner" : "Tenant";
   const roleColor = role === "owner" ? "#1565D8" : "#007AFF";
@@ -28,6 +30,8 @@ export default function RoleRegister() {
     console.log("Password length:", password.length);
     console.log("Confirm Password length:", confirmPassword.length);
 
+    setEmailError("");
+    setPasswordError("");
     if (!fullname || !address || !contact || !email || !password || !confirmPassword) {
       const missing = [];
       if (!fullname) missing.push("Full Name");
@@ -36,23 +40,24 @@ export default function RoleRegister() {
       if (!email) missing.push("Email");
       if (!password) missing.push("Password");
       if (!confirmPassword) missing.push("Confirm Password");
-      
-      console.log("Missing fields:", missing);
       Alert.alert("Validation", `Please fill all fields. Missing: ${missing.join(", ")}`);
       return;
     }
 
-    if (password !== confirmPassword) {
-      console.log("Passwords do not match");
-      Alert.alert("Validation", "Passwords do not match");
+    // Gmail validation
+    if (!email.endsWith("@gmail.com")) {
+      setEmailError("Email must be a valid Gmail address (example@gmail.com)");
       return;
     }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Password match validation
+    if (password !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@gmail\.com$/;
     if (!emailRegex.test(email)) {
-      console.log("Invalid email format");
-      Alert.alert("Validation", "Please enter a valid email address");
+      setEmailError("Please enter a valid Gmail address (example@gmail.com)");
       return;
     }
 
@@ -202,17 +207,25 @@ export default function RoleRegister() {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Email Address</Text>
             <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+              <Ionicons name="mail-outline" size={20} color={emailError ? "#D32F2F" : "#666"} style={styles.inputIcon} />
               <TextInput
                 placeholder="Enter your email"
                 value={email}
-                onChangeText={setEmail}
-                style={styles.input}
+                onChangeText={text => {
+                  setEmail(text);
+                  setEmailError("");
+                }}
+                style={[styles.input, emailError && { borderColor: '#D32F2F', color: '#D32F2F' }]}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 placeholderTextColor="#999"
               />
             </View>
+            {emailError ? (
+              <Text style={{ color: '#D32F2F', fontSize: 12, marginTop: 4 }}>
+                <Ionicons name="alert-circle" size={14} color="#D32F2F" /> {emailError}
+              </Text>
+            ) : null}
           </View>
 
           {/* Password Input */}
@@ -241,13 +254,16 @@ export default function RoleRegister() {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Confirm Password</Text>
             <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+              <Ionicons name="lock-closed-outline" size={20} color={passwordError ? "#D32F2F" : "#666"} style={styles.inputIcon} />
               <TextInput
                 placeholder="Confirm your password"
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={text => {
+                  setConfirmPassword(text);
+                  setPasswordError("");
+                }}
                 secureTextEntry={!showConfirmPassword}
-                style={styles.input}
+                style={[styles.input, passwordError && { borderColor: '#D32F2F', color: '#D32F2F' }]}
                 placeholderTextColor="#999"
               />
               <TouchableOpacity 
@@ -257,6 +273,11 @@ export default function RoleRegister() {
                 <Ionicons name={showConfirmPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#666" />
               </TouchableOpacity>
             </View>
+            {passwordError ? (
+              <Text style={{ color: '#D32F2F', fontSize: 12, marginTop: 4 }}>
+                <Ionicons name="alert-circle" size={14} color="#D32F2F" /> {passwordError}
+              </Text>
+            ) : null}
           </View>
 
           {/* Terms & Conditions */}

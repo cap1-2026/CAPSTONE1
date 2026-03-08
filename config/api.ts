@@ -6,7 +6,7 @@
 // Mac/Linux: Open Terminal and run "ifconfig" or "ip addr"
 
 // Replace with your computer's local IP address
-export const API_BASE_URL = "http://192.168.100.7/Caps";
+export const API_BASE_URL = "http://192.168.100.155/Caps";
 
 // API Endpoints
 export const API_ENDPOINTS = {

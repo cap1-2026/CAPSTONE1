@@ -14,23 +14,11 @@ include "db.php";
 
 $data = json_decode(file_get_contents("php://input"));
 
-// Debug: Log what was received
-error_log("Register received data: " . json_encode($data));
-error_log("Fullname: " . ($data->fullname ?? 'MISSING'));
-error_log("Email: " . ($data->email ?? 'MISSING'));
-error_log("Password: " . ($data->password ?? 'MISSING'));
-
 // Validate input
-if (!$data || !isset($data->fullname) || !isset($data->email) || !isset($data->password)) {
+if (!$data || !isset($data->fullname) || !isset($data->email) || !isset($data->password) || !isset($data->address) || !isset($data->contact) || !isset($data->role)) {
     echo json_encode([
         "status"=>"error",
-        "message"=>"Missing required fields",
-        "debug" => [
-            "received_data" => $data,
-            "has_fullname" => isset($data->fullname),
-            "has_email" => isset($data->email),
-            "has_password" => isset($data->password)
-        ]
+        "message"=>"Missing required fields"
     ]);
     exit();
 }

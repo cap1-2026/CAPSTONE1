@@ -75,7 +75,7 @@ export default function BookingPage() {
     if (!hasPermission) return;
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [3, 2],
       quality: 0.8,
@@ -89,7 +89,7 @@ export default function BookingPage() {
 
   const handleUploadId = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [3, 2],
       quality: 0.8,
@@ -108,14 +108,21 @@ export default function BookingPage() {
       return;
     }
 
+    if (!userId) {
+      Alert.alert("Session Expired", "Please login again.", [
+        { text: "OK", onPress: () => router.replace("/login/tenant") }
+      ]);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Attempt API call but don't block on failure
       const durationMonths = parseInt(leaseDuration.split(" ")[0]);
+      const propertyId = Array.isArray(id) ? id[0] : id;
       const formData = new FormData();
       formData.append("tenant_id", String(userId));
-      formData.append("property_id", String(parseInt(id as string)));
+      formData.append("property_id", String(parseInt(propertyId)));
       formData.append("full_name", fullName);
       formData.append("email", email);
       formData.append("phone", phone);
@@ -137,20 +144,30 @@ export default function BookingPage() {
         } as any);
       }
 
-      fetch(API_ENDPOINTS.BOOK_ROOM, {
+      const response = await fetch(API_ENDPOINTS.BOOK_ROOM, {
         method: "POST",
         body: formData,
         headers: { "Accept": "application/json" }
-      }).catch(() => {}); // fire and forget — don't block UI on network issues
-    } catch (_) {}
+      });
 
-    // Always show success to the user
-    Alert.alert(
-      "Booking Submitted!",
-      "Your booking request has been submitted successfully. The property owner will review your application."
-    );
-    setIsSubmitting(false);
-    router.replace("/tenant/pending-approval");
+      const data = await response.json();
+
+      if (data.status !== "success") {
+        Alert.alert("Booking Failed", data.message || "Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      Alert.alert(
+        "Booking Submitted!",
+        "Your booking request has been submitted successfully. The property owner will review your application."
+      );
+      router.replace("/tenant/pending-approval");
+    } catch (error) {
+      Alert.alert("Connection Error", "Could not reach the server. Please check your internet connection.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
 

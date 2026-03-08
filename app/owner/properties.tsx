@@ -27,24 +27,33 @@ export default function Properties() {
   }
 
   async function deleteProperty(id: number, name: string) {
-    const confirmed = window.confirm(`Remove "${name}"?\n\nThis will permanently remove the listing. This cannot be undone.`);
-    if (!confirmed) return;
-
-    try {
-      const response = await fetch(API_ENDPOINTS.DELETE_PROPERTY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ property_id: id }),
-      });
-      const data = await response.json();
-      if (data.status === "success") {
-        setProperties(prev => prev.filter((p) => p.id !== id));
-      } else {
-        Alert.alert("Cannot Remove", data.message || "Failed to remove property.");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to remove property. Check your connection.");
-    }
+    Alert.alert("Debug", `deleteProperty called for id: ${id}, name: ${name}`);
+    Alert.alert(
+      "Delete Property",
+      "Are you sure you want to delete '" + name + "'? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: async () => {
+            try {
+              const response = await fetch(API_ENDPOINTS.DELETE_PROPERTY, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ property_id: id }),
+              });
+              const data = await response.json();
+              console.log("Delete property response:", data);
+              if (data.status === "success") {
+                setProperties(prev => prev.filter((p) => p.id !== id));
+              } else {
+                Alert.alert("Cannot Delete", data.message || "Failed to delete property.");
+              }
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete property. Check your connection.");
+            }
+          }
+        }
+      ]
+    );
   }
 
   // Reload every time the screen comes into focus (e.g. after submitting)
@@ -87,10 +96,7 @@ export default function Properties() {
           renderItem={({ item }) => (
             <View style={styles.card}>
               {item.first_image ? (
-                <Image
-                  source={{ uri: `${API_BASE_URL}/${item.first_image}` }}
-                  style={styles.thumb}
-                />
+                <Image source={{ uri: API_BASE_URL + '/' + item.first_image }} style={styles.thumb} />
               ) : (
                 <View style={[styles.thumb, styles.thumbPlaceholder]}>
                   <Text style={{ fontSize: 28 }}>🏢</Text>
@@ -106,7 +112,11 @@ export default function Properties() {
                 <TouchableOpacity style={styles.btn} onPress={() => router.push({ pathname: '/owner/submit-property', params: { id: item.id } })}>
                   <Text style={styles.btnText}>Edit</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.removeBtn} onPress={() => deleteProperty(item.id, item.name)}>
+                <TouchableOpacity
+                  style={styles.removeBtn}
+                  onPress={() => deleteProperty(item.id, item.name)}
+                  activeOpacity={0.7}
+                >
                   <Text style={styles.removeBtnText}>Remove</Text>
                 </TouchableOpacity>
               </View>

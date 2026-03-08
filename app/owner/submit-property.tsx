@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import API_ENDPOINTS from "../../config/api";
@@ -57,8 +57,8 @@ export default function OwnerApply() {
 
   // Load existing property data when editing
   useEffect(() => {
-    const id = params.id ? Number(params.id) : null;
-    if (!id) return;
+    let id = params.id ? Number(params.id) : null;
+    if (!id || isNaN(id)) return;
     setEditId(id);
 
     fetch(`${API_ENDPOINTS.GET_PROPERTIES}?property_id=${id}`)
@@ -246,6 +246,9 @@ export default function OwnerApply() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <TouchableOpacity style={[styles.button, { backgroundColor: '#007AFF', marginBottom: 12 }]} onPress={() => Alert.alert('Test', 'Test button pressed!')}>
+        <Text style={[styles.buttonText, { color: '#fff' }]}>Test Button</Text>
+      </TouchableOpacity>
       <Text style={styles.sectionTitle}>Owner Information</Text>
 
       <Text style={styles.label}>Full Name *</Text>
@@ -533,6 +536,8 @@ export default function OwnerApply() {
       <TouchableOpacity style={[styles.button, isSubmitting && styles.buttonDisabled]} onPress={submit} disabled={isSubmitting}>
         <Text style={styles.buttonText}>{isSubmitting ? "Saving..." : editId ? "Save Changes" : "Submit Application"}</Text>
       </TouchableOpacity>
+
+
 
       <View style={styles.whatsNext}>
         <Text style={styles.sectionTitle}>What happens next?</Text>
