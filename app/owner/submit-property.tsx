@@ -246,9 +246,6 @@ export default function OwnerApply() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <TouchableOpacity style={[styles.button, { backgroundColor: '#007AFF', marginBottom: 12 }]} onPress={() => Alert.alert('Test', 'Test button pressed!')}>
-        <Text style={[styles.buttonText, { color: '#fff' }]}>Test Button</Text>
-      </TouchableOpacity>
       <Text style={styles.sectionTitle}>Owner Information</Text>
 
       <Text style={styles.label}>Full Name *</Text>

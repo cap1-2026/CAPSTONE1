@@ -1,7 +1,7 @@
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, Image, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import API_ENDPOINTS, { API_BASE_URL } from "../../config/api";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function BrowseProperties() {
   const router = useRouter();
@@ -9,27 +9,54 @@ export default function BrowseProperties() {
   const propertyTypeParam = params.type as string || "All";
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [allProperties, setAllProperties] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("list"); // list or grid
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    fetchProperties();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchProperties();
+    }, [])
+  );
 
-  async function fetchProperties() {
+  async function fetchProperties(isRefresh = false) {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+      setAllProperties([]);
+    }
+    setFetchError(null);
     try {
-      const response = await fetch(API_ENDPOINTS.GET_PROPERTIES);
-      const data = await response.json();
-      if (data.status === "success") {
-        setAllProperties(data.data);
+      // ?_t= cache-busting forces fresh fetch — no custom CORS headers needed
+      const url = `${API_ENDPOINTS.GET_PROPERTIES}?_t=${Date.now()}`;
+      const response = await fetch(url);
+      const text = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setFetchError(`Server error: ${text.slice(0, 200)}`);
+        return;
       }
-    } catch (error) {
-      console.error("Failed to load properties:", error);
+      if (data.status === "success") {
+        setAllProperties(data.data ?? []);
+      } else {
+        setFetchError(data.message || "Failed to load properties.");
+      }
+    } catch (error: any) {
+      setFetchError(`Network error — make sure XAMPP is running and IP is correct. (${error?.message || error})`);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }
+
+  function onRefresh() {
+    fetchProperties(true);
   }
   
   // Filter states
@@ -54,10 +81,15 @@ export default function BrowseProperties() {
   const filteredProperties = allProperties.filter((prop) => {
     const matchesSearch = (prop.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (prop.address || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = propertyTypeParam === "All" || prop.property_type === propertyTypeParam;
 
-    // Apply filters
-    const matchesPropertyType = selectedPropertyType === "All" || prop.property_type === selectedPropertyType;
+    // Case-insensitive type match; null/empty type = show under all categories
+    const propType = (prop.property_type || '').trim().toLowerCase();
+    const paramType = propertyTypeParam.toLowerCase();
+    const matchesType = paramType === "all" || propType === "" || propType === paramType;
+
+    // Apply panel filter (also case-insensitive)
+    const panelType = selectedPropertyType.toLowerCase();
+    const matchesPropertyType = panelType === "all" || propType === "" || propType === panelType;
 
     let matchesPriceRange = true;
     const price = parseFloat(prop.price) || 0;
@@ -85,15 +117,13 @@ export default function BrowseProperties() {
   });
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#1a73e8"]} tintColor="#1a73e8" />
+      }
+    >
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
-        
         <View style={styles.headerContent}>
           <Text style={styles.title}>Browse Properties</Text>
           <Text style={styles.subtitle}>{filteredProperties.length} properties found</Text>
@@ -401,6 +431,14 @@ export default function BrowseProperties() {
             <ActivityIndicator size="large" color="#1a73e8" />
             <Text style={{ marginTop: 12, color: "#666" }}>Loading properties...</Text>
           </View>
+        ) : fetchError ? (
+          <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: "600", color: "#cc0000", marginBottom: 8, textAlign: "center" }}>Could not load properties</Text>
+            <Text style={{ fontSize: 13, color: "#666", textAlign: "center", marginBottom: 16 }}>{fetchError}</Text>
+            <TouchableOpacity onPress={() => fetchProperties()} style={{ backgroundColor: "#1a73e8", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }}>
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : filteredProperties.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ fontSize: 18, fontWeight: "600", color: "#333", marginBottom: 8 }}>No properties found</Text>
@@ -505,9 +543,7 @@ export default function BrowseProperties() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
-  header: { backgroundColor: "#fff", padding: 16, paddingTop: 32, position: "relative", flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  backButton: { backgroundColor: "#f0f0f0", width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center", marginTop: 2 },
-  backIcon: { fontSize: 20, color: "#333", fontWeight: "600" },
+  header: { backgroundColor: "#fff", padding: 16, paddingTop: 16, flexDirection: "row", alignItems: "center" },
   headerContent: { flex: 1 },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 4 },
   subtitle: { fontSize: 13, color: "#666" },

@@ -39,29 +39,7 @@ export default function TenantHome() {
   ];
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* Header */}
-      <View style={styles.headerBar}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <MaterialCommunityIcons name="arrow-left" size={22} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>PropertyPro</Text>
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={() => router.push("/tenant/dashboard")} style={styles.iconBtn}>
-            <MaterialCommunityIcons name="view-dashboard-outline" size={22} color="#333" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/tenant/approvals")} style={styles.iconBtn}>
-            <MaterialCommunityIcons name="clock-check-outline" size={22} color="#333" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/tenant/notifications")} style={styles.iconBtn}>
-            <MaterialCommunityIcons name="bell-outline" size={22} color="#333" />
-          </TouchableOpacity>
-        </View>
-      </View>
-      
-      <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
         {/* Hero Section */}
         <View style={styles.hero}>
         <Text style={styles.heroTitle}>Find Your Perfect Home</Text>
@@ -190,26 +168,12 @@ export default function TenantHome() {
         ))}
       </View>
     </ScrollView>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: 20 },
-  headerBar: { 
-    height: 56, 
-    backgroundColor: '#fff', 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: 16, 
-    elevation: 2, 
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0'
-  },
   header: { fontSize: 24, fontWeight: "600", marginBottom: 16 },
-  headerTitle: { fontSize: 20, fontWeight: "700", color: "#333" },
-  iconBtn: { padding: 8 },
   lead: { fontSize: 16, color: '#444', marginBottom: 12 },
   hero: { backgroundColor: '#1565D8', padding: 24, borderRadius: 12, marginBottom: 18 },
   heroTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginBottom: 8 },
