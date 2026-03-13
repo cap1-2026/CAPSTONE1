@@ -11,218 +11,196 @@ export default function RoleLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const displayRole = role === "owner" ? "Property Owner" : "Tenant";
-  const roleColor = role === "owner" ? "#1565D8" : "#007AFF";
+  const isOwner = role === "owner";
+  const displayRole = isOwner ? "Property Owner" : "Tenant";
+  const accentColor = isOwner ? "#7C3AED" : "#2563EB";
+  const accentLight = isOwner ? "#F5F3FF" : "#EFF6FF";
+  const accentBorder = isOwner ? "#E9D5FF" : "#BFDBFE";
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert("Validation", "Please enter email and password");
+      Alert.alert("Missing Fields", "Please enter your email and password.");
       return;
     }
-
+    setLoading(true);
     try {
-      console.log("Attempting login with email:", email);
-
-      const response = await fetch(
-        API_ENDPOINTS.LOGIN,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            email: email,
-            password: password
-          })
-        }
-      );
-
-      console.log("Response status:", response.status);
+      const response = await fetch(API_ENDPOINTS.LOGIN, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
       const data = await response.json();
-      console.log("Response data:", data);
 
       if (data.status === "success") {
-        // Verify role matches
         if (data.role !== role) {
-          Alert.alert("Error", `This account is registered as a ${data.role}. Please use the correct login page.`);
+          Alert.alert("Wrong Account", `This account is registered as a ${data.role}. Please use the correct login.`);
           return;
         }
-
-        // Store user session
-        await UserStorage.saveUser({
-          user_id: data.user_id,
-          email: data.email,
-          fullname: data.fullname,
-          role: data.role
-        });
-        
-        console.log("Login successful:", data);
-        
-        Alert.alert("Success", `Welcome back, ${data.fullname || email}!`);
-
-        // Navigate based on role
-        if (data.role === "owner") {
-          router.replace("/owner/home");
-        } else {
-          router.replace("/tenant/home");
-        }
-
+        await UserStorage.saveUser({ user_id: data.user_id, email: data.email, fullname: data.fullname, role: data.role });
+        if (data.role === "owner") router.replace("/owner/home");
+        else router.replace("/tenant/home");
       } else {
-        Alert.alert("Login Failed", data.message || "Invalid credentials");
+        Alert.alert("Login Failed", data.message || "Invalid credentials. Please try again.");
       }
-
-    } catch (error) {
-      console.error("Login error:", error);
-      Alert.alert("Server Error", "Cannot connect to server. Please check your backend is running.");
+    } catch {
+      Alert.alert("Connection Error", "Cannot connect to server. Please check your connection.");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.wrapper} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Hero Header */}
-        <View style={[styles.header, { backgroundColor: roleColor }]}>
-          {/* Back Button */}
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+    <KeyboardAvoidingView style={styles.wrapper} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
+        {/* Top Bar */}
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#374151" />
           </TouchableOpacity>
-          
-          <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="home" size={40} color="#fff" />
-              <Text style={styles.logoText}>PadFinder</Text>
-            </View>
-            <Text style={styles.headerSubtitle}>Find Your Perfect Space</Text>
-          </View>
-          <View style={styles.waveContainer}>
-            <View style={styles.wave} />
-          </View>
         </View>
 
-        {/* Login Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.welcomeText}>Welcome Back!</Text>
-            <Text style={styles.roleText}>Login as {displayRole}</Text>
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <View style={[styles.roleChip, { backgroundColor: accentLight, borderColor: accentBorder }]}>
+            <Ionicons name={isOwner ? "key" : "search"} size={15} color={accentColor} />
+            <Text style={[styles.roleChipText, { color: accentColor }]}>{displayRole}</Text>
           </View>
+          <Text style={styles.welcomeTitle}>Welcome back!</Text>
+          <Text style={styles.welcomeSub}>Sign in to your PadFinder account</Text>
+        </View>
 
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+        {/* Form Card */}
+        <View style={styles.formCard}>
+          {/* Email */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email Address</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
-                placeholder="Enter your email"
+                style={styles.input}
+                placeholder="you@example.com"
                 value={email}
                 onChangeText={setEmail}
-                style={styles.input}
                 autoCapitalize="none"
                 keyboardType="email-address"
-                placeholderTextColor="#999"
+                placeholderTextColor="#C4C9D4"
               />
             </View>
           </View>
 
-          {/* Password Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+          {/* Password */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.fieldLabel}>Password</Text>
+              <TouchableOpacity>
+                <Text style={[styles.forgotText, { color: accentColor }]}>Forgot password?</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
+                style={[styles.input, { paddingRight: 44 }]}
                 placeholder="Enter your password"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
-                style={styles.input}
-                placeholderTextColor="#999"
+                placeholderTextColor="#C4C9D4"
               />
-              <TouchableOpacity 
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-              >
-                <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#666" />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Forgot Password Link */}
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
           {/* Login Button */}
-          <TouchableOpacity 
-            style={[styles.loginButton, { backgroundColor: roleColor }]}
+          <TouchableOpacity
+            style={[styles.loginBtn, { backgroundColor: accentColor }, loading && styles.loginBtnDisabled]}
             onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.85}
           >
-            <Text style={styles.loginButtonText}>Login</Text>
+            {loading
+              ? <Text style={styles.loginBtnText}>Signing in...</Text>
+              : <>
+                  <Text style={styles.loginBtnText}>Sign In</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#fff" />
+                </>
+            }
           </TouchableOpacity>
 
           {/* Divider */}
-          <View style={styles.divider}>
+          <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
+            <Text style={styles.dividerText}>Don't have an account?</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Register Link */}
-          <TouchableOpacity 
-            style={styles.registerLink}
+          {/* Register */}
+          <TouchableOpacity
+            style={[styles.registerBtn, { borderColor: accentBorder }]}
             onPress={() => router.push({ pathname: "/register/[role]", params: { role: role ?? "tenant" } })}
           >
-            <Text style={styles.registerLinkText}>
-              Don't have an account? <Text style={[styles.registerLinkBold, { color: roleColor }]}>Register</Text>
-            </Text>
+            <Text style={[styles.registerBtnText, { color: accentColor }]}>Create Account</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2026 PadFinder. All rights reserved.</Text>
+        {/* Trust Row */}
+        <View style={styles.trustRow}>
+          <View style={styles.trustItem}>
+            <Ionicons name="shield-checkmark" size={16} color="#10B981" />
+            <Text style={styles.trustText}>SSL Secured</Text>
+          </View>
+          <View style={styles.trustDot} />
+          <View style={styles.trustItem}>
+            <Ionicons name="lock-closed" size={16} color="#10B981" />
+            <Text style={styles.trustText}>Encrypted Data</Text>
+          </View>
+          <View style={styles.trustDot} />
+          <View style={styles.trustItem}>
+            <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+            <Text style={styles.trustText}>Verified Platform</Text>
+          </View>
         </View>
+
+        <Text style={styles.footerText}>© 2026 PadFinder. All rights reserved.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: "#f5f7fa" },
-  container: { flexGrow: 1 },
-  header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 20, position: "relative" },
-  backButton: { position: "absolute", top: 50, left: 20, zIndex: 10, padding: 8 },
-  headerContent: { alignItems: "center", zIndex: 1 },
-  logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
-  logoText: { fontSize: 36, fontWeight: "800", color: "#fff" },
-  headerSubtitle: { fontSize: 16, color: "#fff", opacity: 0.9 },
-  waveContainer: { position: "absolute", bottom: -1, left: 0, right: 0, height: 30, overflow: "hidden" },
-  wave: { position: "absolute", bottom: -10, left: 0, right: 0, height: 40, backgroundColor: "#f5f7fa", borderTopLeftRadius: 50, borderTopRightRadius: 50 },
-  card: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: -30, borderRadius: 20, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 8 },
-  cardHeader: { marginBottom: 24, alignItems: "center" },
-  welcomeText: { fontSize: 28, fontWeight: "700", color: "#333", marginBottom: 4 },
-  roleText: { fontSize: 14, color: "#666" },
-  inputContainer: { marginBottom: 20 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 },
-  inputWrapper: { flexDirection: "row", alignItems: "center", backgroundColor: "#f9f9f9", borderRadius: 12, borderWidth: 1, borderColor: "#e0e0e0", paddingHorizontal: 16 },
-  inputIcon: { marginRight: 12 },
-  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: "#333" },
-  eyeButton: { padding: 4 },
-  forgotPassword: { alignSelf: "flex-end", marginBottom: 24 },
-  forgotPasswordText: { fontSize: 13, color: "#007AFF", fontWeight: "500" },
-  loginButton: { paddingVertical: 16, borderRadius: 12, alignItems: "center", marginBottom: 20 },
-  loginButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  divider: { flexDirection: "row", alignItems: "center", marginVertical: 20 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#e0e0e0" },
-  dividerText: { marginHorizontal: 12, fontSize: 12, color: "#999" },
-  registerLink: { alignItems: "center", paddingVertical: 12 },
-  registerLinkText: { fontSize: 14, color: "#666" },
-  registerLinkBold: { fontWeight: "700" },
-  footer: { paddingVertical: 30, alignItems: "center" },
-  footerText: { fontSize: 12, color: "#999" },
+  wrapper: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { paddingBottom: 40 },
+  topBar: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 8 },
+  backBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  headerSection: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
+  roleChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
+  roleChipText: { fontSize: 13, fontWeight: "600" },
+  welcomeTitle: { fontSize: 30, fontWeight: "800", color: "#0F172A", letterSpacing: -0.5, marginBottom: 6 },
+  welcomeSub: { fontSize: 15, color: "#64748B" },
+  formCard: { backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 20, padding: 24, shadowColor: "#1E3A8A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6, marginBottom: 24 },
+  fieldGroup: { marginBottom: 18 },
+  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  forgotText: { fontSize: 13, fontWeight: "500" },
+  inputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 14 },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, paddingVertical: 13, fontSize: 15, color: "#1E293B" },
+  eyeBtn: { padding: 4 },
+  loginBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 12, marginTop: 4, marginBottom: 20 },
+  loginBtnDisabled: { opacity: 0.6 },
+  loginBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  dividerText: { fontSize: 13, color: "#94A3B8" },
+  registerBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1.5 },
+  registerBtnText: { fontSize: 15, fontWeight: "700" },
+  trustRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24, marginBottom: 16 },
+  trustItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  trustText: { fontSize: 12, color: "#64748B", fontWeight: "500" },
+  trustDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#CBD5E1" },
+  footerText: { textAlign: "center", fontSize: 12, color: "#94A3B8" },
 });

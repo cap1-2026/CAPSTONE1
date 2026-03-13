@@ -4,6 +4,18 @@ import React, { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import API_ENDPOINTS from "../../config/api";
 
+// Cross-platform alert function that works on web and native
+function showAlert(title: string, message: string, onPress?: () => void) {
+  if (Platform.OS === 'web') {
+    // Use browser's native alert for web
+    alert(`${title}\n\n${message}`);
+    if (onPress) onPress();
+  } else {
+    // Use React Native Alert for mobile
+    Alert.alert(title, message, [{ text: "OK", onPress }]);
+  }
+}
+
 export default function RoleRegister() {
   const { role } = useLocalSearchParams() as { role?: string };
   const router = useRouter();
@@ -40,7 +52,7 @@ export default function RoleRegister() {
       if (!email) missing.push("Email");
       if (!password) missing.push("Password");
       if (!confirmPassword) missing.push("Confirm Password");
-      Alert.alert("Validation", `Please fill all fields. Missing: ${missing.join(", ")}`);
+      showAlert("Validation", `Please fill all fields. Missing: ${missing.join(", ")}`);
       return;
     }
 
@@ -91,31 +103,25 @@ export default function RoleRegister() {
       console.log("Response data:", data);
 
       if (data.status === "success") {
-        console.log("✅ REGISTRATION SUCCESS - Showing alert");
-        const targetPage = role === "owner" ? "/owner/home" : "/tenant/home";
-        Alert.alert(
-          "Success", 
-          "Account created successfully! You will be redirected to your home page.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                console.log("Navigating to", targetPage);
-                router.replace(targetPage);
-              }
-            }
-          ]
-        );
+        console.log("✅ REGISTRATION SUCCESS - Navigating to confirmation page");
+        // Navigate to confirmation page with user details
+        router.replace({
+          pathname: "/register/confirmation",
+          params: {
+            role: role ?? "tenant",
+            email: email
+          }
+        });
       } else {
         console.log("❌ REGISTRATION FAILED - Showing error alert");
         console.log("Error message:", data.message);
-        Alert.alert("Registration Failed", data.message || "Could not create account");
+        showAlert("Registration Failed", data.message || "Could not create account");
       }
 
     } catch (error) {
       console.error("Registration error:", error);
       console.log("⚠️ SERVER ERROR - Showing error alert");
-      Alert.alert("Server Error", "Cannot connect to server. Please check your backend is running.");
+      showAlert("Server Error", "Cannot connect to server. Please check your backend is running.");
     }
   }
 

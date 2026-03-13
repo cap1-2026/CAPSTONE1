@@ -1,247 +1,181 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function TenantHome() {
   const router = useRouter();
-  const [location, setLocation] = useState("");
-  const [propertyType, setPropertyType] = useState("Property Type");
 
   const propertyTypes = [
-    { name: "Apartments", count: "150 listings", icon: "🏢" },
-    { name: "Condominiums", count: "89 listings", icon: "🏙️" },
-    { name: "Dormitories", count: "45 listings", icon: "🏠" },
-    { name: "Transient", count: "32 listings", icon: "🏖️" },
-  ];
-
-  const features = [
-    { icon: "🔒", title: "Secure Payments", desc: "SSL encrypted transactions" },
-    { icon: "✓", title: "Verified Listings", desc: "All properties verified" },
-    { icon: "📄", title: "Digital Contracts", desc: "Legally binding e-signatures" },
-    { icon: "🔑", title: "IoT Key Access", desc: "Instant digital keys" },
+    { name: "Apartments", count: "150+", icon: "office-building", color: "#EFF6FF", iconColor: "#2563EB" },
+    { name: "Condominiums", count: "89+", icon: "home-city", color: "#F5F3FF", iconColor: "#7C3AED" },
+    { name: "Dormitories", count: "45+", icon: "bed-king-outline", color: "#FFF7ED", iconColor: "#EA580C" },
+    { name: "Transient", count: "32+", icon: "airplane", color: "#F0FDF4", iconColor: "#059669" },
   ];
 
   const steps = [
-    { number: "1", title: "Search", desc: "Browse verified properties with advanced filters" },
-    { number: "2", title: "Book", desc: "Book online and pay securely with escrow" },
-    { number: "3", title: "Sign", desc: "Sign digital contract with e-signature" },
-    { number: "4", title: "Move In", desc: "Get IoT key and move in hassle-free" },
-  ];
-
-  const benefits = [
-    { icon: "🔍", title: "Easy Search", desc: "Find your perfect home with powerful filters for location, price, and amenities" },
-    { icon: "💳", title: "Secure Payments", desc: "Pay rent and deposits online with encrypted, secure payment processing" },
-    { icon: "🛡️", title: "Escrow Protection", desc: "Your security deposit is safely held in escrow until move-out" },
-    { icon: "📝", title: "Digital Contracts", desc: "Sign your lease agreement online with legally binding e-signatures" },
-    { icon: "🔑", title: "Smart Key Access", desc: "Get digital keys delivered instantly - no physical key exchange needed" },
-    { icon: "✓", title: "Verified Listings", desc: "All properties are verified and managed by PropertyPro" },
+    { num: "1", title: "Search", desc: "Browse verified properties with advanced filters", color: "#2563EB" },
+    { num: "2", title: "Book", desc: "Book online and pay securely with escrow protection", color: "#7C3AED" },
+    { num: "3", title: "Sign", desc: "Sign digital contract with legally binding e-signature", color: "#0891B2" },
+    { num: "4", title: "Move In", desc: "Get IoT key instantly and move in hassle-free", color: "#059669" },
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-        {/* Hero Section */}
-        <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Find Your Perfect Home</Text>
-        <Text style={styles.heroSubtitle}>
-          Browse verified apartments, dorms, condos, and transient rentals. Book online and move in with digital keys.
-        </Text>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-        <TouchableOpacity 
-          style={styles.browseButton}
-          onPress={() => router.push("/tenant/browse-properties")}
-        >
-          <Text style={styles.browseButtonText}>Browse Properties</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.heroFooter}>🏠 Over 500+ verified properties available now</Text>
-      </View>
-
-      {/* Quick Access Dashboard */}
-      <Text style={styles.header}>My Account</Text>
-      <Text style={styles.lead}>Manage your rentals, payments, and contracts</Text>
-      <View style={styles.dashboardGrid}>
-        <TouchableOpacity 
-          style={styles.dashboardCard}
-          onPress={() => router.push("/tenant/dashboard")}
-        >
-          <View style={[styles.dashboardIcon, { backgroundColor: "#E3F2FD" }]}>
-            <MaterialCommunityIcons name="view-dashboard" size={28} color="#2196F3" />
-          </View>
-          <Text style={styles.dashboardCardTitle}>Dashboard</Text>
-          <Text style={styles.dashboardCardDesc}>Overview & stats</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.dashboardCard}
-          onPress={() => router.push("/tenant/properties")}
-        >
-          <View style={[styles.dashboardIcon, { backgroundColor: "#E8F5E9" }]}>
-            <MaterialCommunityIcons name="home-city" size={28} color="#4CAF50" />
-          </View>
-          <Text style={styles.dashboardCardTitle}>My Properties</Text>
-          <Text style={styles.dashboardCardDesc}>Active rentals</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.dashboardCard}
-          onPress={() => router.push("/tenant/payment")}
-        >
-          <View style={[styles.dashboardIcon, { backgroundColor: "#FFF3E0" }]}>
-            <MaterialCommunityIcons name="credit-card" size={28} color="#FF9800" />
-          </View>
-          <Text style={styles.dashboardCardTitle}>Payments</Text>
-          <Text style={styles.dashboardCardDesc}>Pay rent online</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.dashboardCard}
-          onPress={() => router.push("/tenant/contracts")}
-        >
-          <View style={[styles.dashboardIcon, { backgroundColor: "#F3E5F5" }]}>
-            <MaterialCommunityIcons name="file-document" size={28} color="#9C27B0" />
-          </View>
-          <Text style={styles.dashboardCardTitle}>Contracts</Text>
-          <Text style={styles.dashboardCardDesc}>Lease agreements</Text>
+      {/* Hero */}
+      <View style={styles.hero}>
+        <View style={styles.heroDecor} />
+        <View style={styles.heroBadge}>
+          <Ionicons name="home" size={13} color="#93C5FD" />
+          <Text style={styles.heroBadgeText}>500+ verified properties</Text>
+        </View>
+        <Text style={styles.heroTitle}>Find Your Perfect{"\n"}Place to Live</Text>
+        <Text style={styles.heroSub}>Browse apartments, condos, dorms & transient rentals. Book online with secure digital contracts.</Text>
+        <TouchableOpacity style={styles.heroBtn} onPress={() => router.push("/tenant/browse-properties")}>
+          <Ionicons name="search" size={16} color="#2563EB" />
+          <Text style={styles.heroBtnText}>Browse Properties</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Features Bar */}
-      <Text style={styles.header}>Why Choose PropertyPro?</Text>
-      <Text style={styles.lead}>Everything you need for a seamless rental experience</Text>
-      <View style={styles.featuresList}>
-        {features.map((feature, index) => (
-          <View key={index} style={styles.featureCard}>
-            <Text style={styles.featureIcon}>{feature.icon}</Text>
-            <View style={styles.featureContent}>
-              <Text style={styles.featureTitle}>{feature.title}</Text>
-              <Text style={styles.featureText}>{feature.desc}</Text>
+      {/* My Account Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>My Account</Text>
+        <Text style={styles.sectionSub}>Manage your rentals, payments & contracts</Text>
+        <View style={styles.dashGrid}>
+          {[
+            { icon: "view-dashboard-outline", label: "Dashboard", sub: "Overview & stats", path: "/tenant/dashboard", color: "#EFF6FF", iconColor: "#2563EB" },
+            { icon: "home-city-outline", label: "My Properties", sub: "Active rentals", path: "/tenant/properties", color: "#F5F3FF", iconColor: "#7C3AED" },
+            { icon: "credit-card-outline", label: "Payments", sub: "Pay rent online", path: "/tenant/payment", color: "#FFF7ED", iconColor: "#EA580C" },
+            { icon: "file-document-outline", label: "Contracts", sub: "Lease agreements", path: "/tenant/contracts", color: "#F0FDF4", iconColor: "#059669" },
+          ].map((item, i) => (
+            <TouchableOpacity key={i} style={styles.dashCard} onPress={() => router.push(item.path as any)}>
+              <View style={[styles.dashIcon, { backgroundColor: item.color }]}>
+                <MaterialCommunityIcons name={item.icon as any} size={24} color={item.iconColor} />
+              </View>
+              <Text style={styles.dashLabel}>{item.label}</Text>
+              <Text style={styles.dashSub}>{item.sub}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Browse by Type */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Browse by Type</Text>
+        <View style={styles.typesGrid}>
+          {propertyTypes.map((t, i) => (
+            <TouchableOpacity
+              key={i}
+              style={styles.typeCard}
+              onPress={() => router.push(`/tenant/browse-properties?type=${t.name.slice(0, -1)}` as any)}
+            >
+              <View style={[styles.typeIcon, { backgroundColor: t.color }]}>
+                <MaterialCommunityIcons name={t.icon as any} size={26} color={t.iconColor} />
+              </View>
+              <Text style={styles.typeName}>{t.name}</Text>
+              <Text style={styles.typeCount}>{t.count} listings</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Why PadFinder */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Why Choose PadFinder?</Text>
+        <View style={styles.benefitsRow}>
+          {[
+            { icon: "shield-checkmark", color: "#059669", bg: "#F0FDF4", label: "Verified Listings" },
+            { icon: "lock-closed", color: "#2563EB", bg: "#EFF6FF", label: "Secure Payments" },
+            { icon: "document-text", color: "#7C3AED", bg: "#F5F3FF", label: "Digital Contracts" },
+            { icon: "key", color: "#EA580C", bg: "#FFF7ED", label: "IoT Key Access" },
+          ].map((b, i) => (
+            <View key={i} style={styles.benefitItem}>
+              <View style={[styles.benefitIcon, { backgroundColor: b.bg }]}>
+                <Ionicons name={b.icon as any} size={20} color={b.color} />
+              </View>
+              <Text style={styles.benefitLabel}>{b.label}</Text>
             </View>
-          </View>
-        ))}
-      </View>
-
-      {/* Browse by Property Type */}
-      <Text style={[styles.header, { marginTop: 18 }]}>Browse by Property Type</Text>
-      <View style={styles.typesList}>
-        {propertyTypes.map((type, index) => (
-          <TouchableOpacity 
-            key={index} 
-            style={styles.typeCard}
-            onPress={() => router.push(`/tenant/browse-properties?type=${type.name.slice(0, -1)}`)}
-          >
-            <Text style={styles.propertyIcon}>{type.icon}</Text>
-            <Text style={styles.typeTitle}>{type.name}</Text>
-            <Text style={styles.typeText}>{type.count}</Text>
-          </TouchableOpacity>
-        ))}
+          ))}
+        </View>
       </View>
 
       {/* How It Works */}
-      <Text style={[styles.header, { marginTop: 18 }]}>How It Works</Text>
-      <Text style={styles.lead}>4 simple steps to your new home</Text>
-      <View style={styles.stepsRow}>
-        {steps.map((step, index) => (
-          <View key={index} style={styles.step}>
-            <View style={styles.stepRow}>
-              <View style={styles.stepIndexCircle}>
-                <Text style={styles.stepIndexText}>{step.number}</Text>
-              </View>
-              <View style={styles.stepBody}>
-                <Text style={styles.stepTitle}>{step.title}</Text>
-                <Text style={styles.stepText}>{step.desc}</Text>
-              </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>How It Works</Text>
+        <Text style={styles.sectionSub}>4 simple steps to your new home</Text>
+        {steps.map((s, i) => (
+          <View key={i} style={styles.stepRow}>
+            <View style={[styles.stepCircle, { backgroundColor: s.color }]}>
+              <Text style={styles.stepNum}>{s.num}</Text>
             </View>
+            <View style={styles.stepBody}>
+              <Text style={styles.stepTitle}>{s.title}</Text>
+              <Text style={styles.stepText}>{s.desc}</Text>
+            </View>
+            {i < steps.length - 1 && <View style={styles.stepArrow}><Ionicons name="chevron-forward" size={16} color="#CBD5E1" /></View>}
           </View>
         ))}
       </View>
 
-      {/* Benefits */}
-      <Text style={[styles.header, { marginTop: 18 }]}>Key Benefits</Text>
-      <View style={styles.benefitsList}>
-        {benefits.map((benefit, index) => (
-          <View key={index} style={styles.benefitCard}>
-            <Text style={styles.benefitIcon}>{benefit.icon}</Text>
-            <Text style={styles.benefitTitle}>{benefit.title}</Text>
-            <Text style={styles.benefitText}>{benefit.desc}</Text>
-          </View>
-        ))}
-      </View>
+      {/* CTA */}
+      <TouchableOpacity style={styles.ctaCard} onPress={() => router.push("/tenant/browse-properties")}>
+        <View>
+          <Text style={styles.ctaTitle}>Ready to find your home?</Text>
+          <Text style={styles.ctaSub}>Browse 500+ verified properties now.</Text>
+        </View>
+        <View style={styles.ctaArrow}>
+          <Ionicons name="arrow-forward" size={20} color="#2563EB" />
+        </View>
+      </TouchableOpacity>
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20 },
-  header: { fontSize: 24, fontWeight: "600", marginBottom: 16 },
-  lead: { fontSize: 16, color: '#444', marginBottom: 12 },
-  hero: { backgroundColor: '#1565D8', padding: 24, borderRadius: 12, marginBottom: 18 },
-  heroTitle: { color: '#fff', fontSize: 26, fontWeight: '700', marginBottom: 8 },
-  heroSubtitle: { color: '#E8F0FF', fontSize: 14, lineHeight: 20, marginBottom: 14 },
-  browseButton: { backgroundColor: '#fff', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, alignSelf: 'flex-start' },
-  browseButtonText: { color: '#0A58FF', fontWeight: '700' },
-  heroFooter: { marginTop: 14, color: '#E8F0FF', fontSize: 13 },
-  featuresList: { marginTop: 6 },
-  featureCard: { flexDirection: 'row', backgroundColor: '#fff', padding: 14, borderRadius: 12, elevation: 2, marginBottom: 12, alignItems: 'center' },
-  featureIcon: { fontSize: 28, marginRight: 12 },
-  featureContent: { flex: 1 },
-  featureTitle: { fontWeight: '700', marginBottom: 6 },
-  featureText: { color: '#666', fontSize: 13, lineHeight: 20 },
-  typesList: { marginTop: 12 },
-  typeCard: { backgroundColor: '#fff', paddingVertical: 24, paddingHorizontal: 18, borderRadius: 12, elevation: 2, marginBottom: 12, alignItems: 'center' },
-  propertyIcon: { fontSize: 44, marginBottom: 8 },
-  typeTitle: { fontWeight: '700', marginBottom: 6 },
-  typeText: { color: '#666', textAlign: 'center', lineHeight: 20 },
-  stepsRow: { marginTop: 8 },
-  step: { backgroundColor: 'transparent', padding: 12, borderRadius: 8, marginBottom: 12, alignItems: 'center' },
-  stepRow: { flexDirection: 'row', alignItems: 'center', width: '92%' },
-  stepIndexCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  stepIndexText: { color: '#fff', fontWeight: '700' },
+  container: { backgroundColor: "#F8FAFC", paddingBottom: 32 },
+
+  hero: { backgroundColor: "#1D4ED8", paddingTop: 28, paddingBottom: 36, paddingHorizontal: 24, overflow: "hidden", position: "relative" },
+  heroDecor: { position: "absolute", top: -40, right: -40, width: 150, height: 150, borderRadius: 75, backgroundColor: "rgba(255,255,255,0.07)" },
+  heroBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.14)", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, marginBottom: 12 },
+  heroBadgeText: { fontSize: 12, color: "#fff", fontWeight: "500" },
+  heroTitle: { fontSize: 28, fontWeight: "800", color: "#fff", lineHeight: 36, marginBottom: 10, letterSpacing: -0.5 },
+  heroSub: { fontSize: 14, color: "#BFDBFE", lineHeight: 21, marginBottom: 18 },
+  heroBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#fff", paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12, alignSelf: "flex-start" },
+  heroBtnText: { color: "#2563EB", fontWeight: "700", fontSize: 14 },
+
+  section: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 4 },
+  sectionTitle: { fontSize: 20, fontWeight: "700", color: "#0F172A", marginBottom: 4 },
+  sectionSub: { fontSize: 14, color: "#64748B", marginBottom: 14 },
+
+  dashGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
+  dashCard: { width: "47%", backgroundColor: "#fff", borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  dashIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  dashLabel: { fontSize: 14, fontWeight: "700", color: "#1E293B", marginBottom: 3 },
+  dashSub: { fontSize: 12, color: "#64748B" },
+
+  typesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 },
+  typeCard: { width: "47%", backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 6, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  typeIcon: { width: 54, height: 54, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  typeName: { fontSize: 14, fontWeight: "700", color: "#1E293B" },
+  typeCount: { fontSize: 12, color: "#64748B" },
+
+  benefitsRow: { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, padding: 16, justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, marginTop: 8 },
+  benefitItem: { alignItems: "center", gap: 6 },
+  benefitIcon: { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  benefitLabel: { fontSize: 11, fontWeight: "600", color: "#374151", textAlign: "center", maxWidth: 64 },
+
+  stepRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 8, shadowColor: "#000", shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  stepCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  stepNum: { color: "#fff", fontWeight: "800", fontSize: 14 },
   stepBody: { flex: 1 },
-  stepTitle: { fontWeight: '700', marginBottom: 6 },
-  stepText: { color: '#666' },
-  benefitsList: { marginTop: 12 },
-  benefitCard: { backgroundColor: '#fff', padding: 16, borderRadius: 12, elevation: 2, marginBottom: 12, alignItems: 'center' },
-  benefitIcon: { fontSize: 32, marginBottom: 8 },
-  benefitTitle: { fontWeight: '700', marginBottom: 6, textAlign: 'center' },
-  benefitText: { color: '#666', fontSize: 13, lineHeight: 20, textAlign: 'center' },
-  dashboardGrid: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 12, 
-    marginTop: 8, 
-    marginBottom: 18 
-  },
-  dashboardCard: { 
-    backgroundColor: '#fff', 
-    borderRadius: 12, 
-    padding: 16, 
-    width: '48%', 
-    alignItems: 'center',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  dashboardIcon: { 
-    width: 56, 
-    height: 56, 
-    borderRadius: 28, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 12 
-  },
-  dashboardCardTitle: { 
-    fontSize: 15, 
-    fontWeight: '700', 
-    color: '#333', 
-    marginBottom: 4, 
-    textAlign: 'center' 
-  },
-  dashboardCardDesc: { 
-    fontSize: 12, 
-    color: '#666', 
-    textAlign: 'center' 
-  },
+  stepTitle: { fontSize: 14, fontWeight: "700", color: "#1E293B", marginBottom: 3 },
+  stepText: { fontSize: 12, color: "#64748B", lineHeight: 18 },
+  stepArrow: {},
+
+  ctaCard: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1D4ED8", marginHorizontal: 16, marginTop: 16, borderRadius: 16, padding: 20 },
+  ctaTitle: { fontSize: 16, fontWeight: "700", color: "#fff", marginBottom: 4 },
+  ctaSub: { fontSize: 13, color: "#BFDBFE" },
+  ctaArrow: { width: 44, height: 44, borderRadius: 12, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
 });
