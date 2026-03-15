@@ -1,56 +1,44 @@
-// API Configuration
-// Update this file with your backend API URL
+// ============================================================
+//  PadFinder – Central API Configuration
+//  Update API_BASE_URL to match your XAMPP server IP/port.
+//  All endpoints in the app import from this file.
+// ============================================================
 
-// Find your local IP address:
-// Windows: Open CMD and run "ipconfig" (look for IPv4 Address)
-// Mac/Linux: Open Terminal and run "ifconfig" or "ip addr"
-
-// Replace with your computer's local IP address
+// ⚠️  Change this to your machine's local IP (run `ipconfig` on Windows)
+//     Keep the trailing slash off – it is added per-endpoint below.
 export const API_BASE_URL = "http://192.168.0.131/Caps";
 
-// API Endpoints
-export const API_ENDPOINTS = {
-  // Authentication
-  REGISTER: `${API_BASE_URL}/register.php`,
-  LOGIN: `${API_BASE_URL}/login.php`,
+// Shorthand helper so screens can import both default + named
+const API_ENDPOINTS = {
+  // ── Auth ───────────────────────────────────────────────
+  LOGIN:           `${API_BASE_URL}/login.php`,
+  REGISTER:        `${API_BASE_URL}/register.php`,
 
-  // Properties
-  ADD_PROPERTY: `${API_BASE_URL}/add_property.php`,
-  GET_PROPERTIES: `${API_BASE_URL}/get_properties.php`,
+  // ── Properties ────────────────────────────────────────
+  GET_PROPERTIES:  `${API_BASE_URL}/get_properties.php`,
+  ADD_PROPERTY:    `${API_BASE_URL}/add_property.php`,
   UPDATE_PROPERTY: `${API_BASE_URL}/update_property.php`,
   DELETE_PROPERTY: `${API_BASE_URL}/delete_property.php`,
-  UPLOAD_IMAGES: `${API_BASE_URL}/upload_images.php`,
-  APPROVE_PROPERTY: `${API_BASE_URL}/approve_property.php`,
+  APPROVE_PROPERTY:`${API_BASE_URL}/approve_property.php`,
+  UPLOAD_IMAGES:   `${API_BASE_URL}/upload_images.php`,
 
-  // Bookings
-  BOOK_ROOM: `${API_BASE_URL}/book_room.php`,
-  GET_BOOKINGS: `${API_BASE_URL}/get_bookings.php`,
+  // ── Bookings ──────────────────────────────────────────
+  GET_BOOKINGS:    `${API_BASE_URL}/get_bookings.php`,
+  BOOK_ROOM:       `${API_BASE_URL}/book_room.php`,
   APPROVE_BOOKING: `${API_BASE_URL}/approve_booking.php`,
-  DELETE_BOOKING: `${API_BASE_URL}/delete_booking.php`,
-  VERIFY_QR: `${API_BASE_URL}/verify_qr.php`,
+  DELETE_BOOKING:  `${API_BASE_URL}/delete_booking.php`,
 
-  // Payments
-  PAYMENT: `${API_BASE_URL}/payment.php`,
-  GET_PAYMENTS: `${API_BASE_URL}/get_payments.php`,
+  // ── Payments ──────────────────────────────────────────
+  PAYMENT:         `${API_BASE_URL}/payment.php`,
+  GET_PAYMENTS:    `${API_BASE_URL}/get_payments.php`,
   ESCROW_DECISION: `${API_BASE_URL}/escrow_decision.php`,
 
-  // Admin
+  // ── Admin ─────────────────────────────────────────────
   GET_ADMIN_STATS: `${API_BASE_URL}/get_admin_stats.php`,
+  GET_USERS:       `${API_BASE_URL}/get_users.php`,
 
-  // Test
-  TEST: `${API_BASE_URL}/test.php`,
+  // ── Misc ──────────────────────────────────────────────
+  VERIFY_QR:       `${API_BASE_URL}/verify_qr.php`,
 };
-
-// Helper function to check if backend is accessible
-export async function testBackendConnection(): Promise<boolean> {
-  try {
-    const response = await fetch(API_ENDPOINTS.TEST);
-    const data = await response.json();
-    return data.status === "success";
-  } catch (error) {
-    console.error("Backend connection test failed:", error);
-    return false;
-  }
-}
 
 export default API_ENDPOINTS;

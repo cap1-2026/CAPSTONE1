@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, RefreshControl,
+  ActivityIndicator, Alert, FlatList, RefreshControl,
   StyleSheet, Text, TextInput, TouchableOpacity, View
 } from "react-native";
 import API_ENDPOINTS from "../../config/api";
@@ -34,8 +34,9 @@ export default function AdminPayments() {
       const res = await fetch(`${API_ENDPOINTS.GET_PAYMENTS}?admin=1&_t=${Date.now()}`);
       const data = await res.json();
       if (data.status === "success") setPayments(data.data ?? []);
+      else Alert.alert("Error", data.message || "Could not load payments.");
     } catch {
-      // silently fail
+      Alert.alert("Connection Error", "Cannot reach server. Check your network.");
     } finally {
       setLoading(false);
       setRefreshing(false);

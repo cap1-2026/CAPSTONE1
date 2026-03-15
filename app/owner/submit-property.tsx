@@ -23,6 +23,7 @@ export default function OwnerApply() {
   const [propertyType, setPropertyType] = useState("");
   const [showPropertyTypeDropdown, setShowPropertyTypeDropdown] = useState(false);
   const [monthlyRent, setMonthlyRent] = useState("");
+  const [securityDeposit, setSecurityDeposit] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
@@ -69,6 +70,7 @@ export default function OwnerApply() {
         setPropertyTitle(p.name || "");
         setPropertyType(p.property_type || "");
         setMonthlyRent(p.price ? String(Math.round(parseFloat(p.price))) : "");
+        setSecurityDeposit(p.deposit ? String(Math.round(parseFloat(p.deposit))) : "");
         setAddress(p.address || "");
         setBedrooms(p.rooms ? String(p.rooms) : "");
         setFloorArea(p.room_size || "");
@@ -177,7 +179,7 @@ export default function OwnerApply() {
             max_occupants: 1,
             amenities: amenityList.join(", "),
             price: parseFloat(monthlyRent) || 0,
-            deposit: parseFloat(monthlyRent) || 0,
+            deposit: parseFloat(securityDeposit) || parseFloat(monthlyRent) || 0,
             rules: description,
           }),
         });
@@ -203,7 +205,7 @@ export default function OwnerApply() {
             max_occupants: 1,
             amenities: amenityList.join(", "),
             price: parseFloat(monthlyRent) || 0,
-            deposit: parseFloat(monthlyRent) || 0,
+            deposit: parseFloat(securityDeposit) || parseFloat(monthlyRent) || 0,
             rules: description,
           }),
         });
@@ -338,6 +340,15 @@ export default function OwnerApply() {
         onChangeText={(text) => setMonthlyRent(text.replace(/[^0-9]/g, ''))} 
         keyboardType="numeric" 
         placeholder="15000" 
+      />
+
+      <Text style={styles.label}>Security Deposit (₱) *</Text>
+      <TextInput
+        style={styles.input}
+        value={securityDeposit}
+        onChangeText={(text) => setSecurityDeposit(text.replace(/[^0-9]/g, ""))}
+        keyboardType="numeric"
+        placeholder="e.g. 5000 — how much tenant pays upfront"
       />
 
       <Text style={styles.sectionTitle}>Location</Text>

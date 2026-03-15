@@ -17,6 +17,7 @@ interface Booking {
   move_in: string;
   lease_duration: string;
   status: "pending" | "approved" | "rejected";
+  property_deposit: number;
   created_at: string;
 }
 
@@ -167,7 +168,7 @@ export default function TenantPropertiesPage() {
                       pathname: "/tenant/payment",
                       params: {
                         booking_id: String(item.id),
-                        amount: String(Number(item.property_price) * 2),
+                        amount: String(Number(item.property_deposit) || Number(item.property_price)),
                         property_name: item.property_name,
                         property_address: item.property_address,
                         monthly_rent: String(item.property_price),

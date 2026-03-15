@@ -1,11 +1,14 @@
+// app/admin/approvals.tsx
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Alert, Image, RefreshControl,
-  ScrollView, StyleSheet, Text, TouchableOpacity, View
+  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
-import API_ENDPOINTS, { API_BASE_URL } from "../../config/api";
+
+// ⚠️ UPDATE THIS TO YOUR COMPUTER'S IP ADDRESS
+const BASE = "http://192.168.0.131/Caps";
 
 interface Property {
   id: number;
@@ -13,6 +16,7 @@ interface Property {
   property_type: string;
   address: string;
   price: number;
+  deposit: number;
   rooms: number;
   amenities: string;
   owner_name: string;
@@ -24,23 +28,24 @@ interface Property {
 
 export default function AdminApprovals() {
   const router = useRouter();
-  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [properties, setProperties]       = useState<Property[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [refreshing, setRefreshing]       = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [search, setSearch]               = useState("");
+  const [filter, setFilter]               = useState<"pending" | "all">("pending");
 
   const fetchProperties = useCallback(async () => {
     try {
-      const res = await fetch(`${API_ENDPOINTS.GET_PROPERTIES}?admin=1&_t=${Date.now()}`);
+      const res  = await fetch(`${BASE}/get_properties.php?admin=1&_t=${Date.now()}`);
       const data = await res.json();
       if (data.status === "success") {
         setProperties(data.data ?? []);
       } else {
-        Alert.alert("Error", data.message || "Failed to load properties.");
+        Alert.alert("Error", data.message || "Could not load properties.");
       }
-    } catch {
-      Alert.alert("Connection Error", "Cannot reach server. Check your connection.");
+    } catch (e: any) {
+      Alert.alert("Connection Error", `Cannot reach server.\n${e?.message}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -49,40 +54,46 @@ export default function AdminApprovals() {
 
   useEffect(() => { fetchProperties(); }, [fetchProperties]);
 
-  function onRefresh() {
-    setRefreshing(true);
-    fetchProperties();
-  }
-
-  async function handleAction(propertyId: number, action: "approved" | "rejected", propertyName: string) {
+  async function handleAction(property: Property, action: "approved" | "rejected") {
     const label = action === "approved" ? "Approve" : "Reject";
     Alert.alert(
       `${label} Property`,
-      `Are you sure you want to ${label.toLowerCase()} "${propertyName}"?`,
+      `${label} "${property.name}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: label,
           style: action === "rejected" ? "destructive" : "default",
           onPress: async () => {
-            setActionLoading(propertyId);
+            setActionLoading(property.id);
             try {
-              const res = await fetch(API_ENDPOINTS.APPROVE_PROPERTY ?? `${API_BASE_URL}/api/approve_property.php`, {
-                method: "POST",
+              const res = await fetch(`${BASE}/approve_property.php`, {
+                method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ property_id: propertyId, action }),
+                body:    JSON.stringify({ property_id: property.id, action }),
               });
-              const data = await res.json();
+
+              // Read raw text first to catch non-JSON responses
+              const text = await res.text();
+              let data: any = {};
+              try {
+                data = JSON.parse(text);
+              } catch {
+                Alert.alert("Server Error", `Unexpected response:\n${text.slice(0, 300)}`);
+                setActionLoading(null);
+                return;
+              }
+
               if (data.status === "success") {
                 setProperties((prev) =>
-                  prev.map((p) => p.id === propertyId ? { ...p, status: action } : p)
+                  prev.map((p) => p.id === property.id ? { ...p, status: action } : p)
                 );
-                Alert.alert("Done", `Property ${action} successfully.`);
+                Alert.alert("✅ Done", `Property has been ${action}.`);
               } else {
-                Alert.alert("Failed", data.message ?? "Please try again.");
+                Alert.alert("Failed", `Server: ${data.message ?? "Unknown error"}`);
               }
-            } catch {
-              Alert.alert("Error", "Could not process request. Check your connection.");
+            } catch (e: any) {
+              Alert.alert("Network Error", `${e?.message}`);
             } finally {
               setActionLoading(null);
             }
@@ -92,56 +103,92 @@ export default function AdminApprovals() {
     );
   }
 
-  const filteredProperties = properties.filter((p) =>
-    filter === "all" ? true : p.status === filter
-  );
+  const filtered = properties.filter((p) => {
+    const matchStatus = filter === "all" || p.status === filter;
+    const q = search.toLowerCase();
+    const matchSearch = !q ||
+      (p.name       || "").toLowerCase().includes(q) ||
+      (p.owner_name || "").toLowerCase().includes(q) ||
+      (p.address    || "").toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
 
-  const pendingCount = properties.filter((p) => p.status === "pending").length;
+  const pendingCount  = properties.filter((p) => p.status === "pending").length;
+  const approvedCount = properties.filter((p) => p.status === "approved").length;
+  const rejectedCount = properties.filter((p) => p.status === "rejected").length;
 
-  const getStatusColor = (status: string) => {
-    if (status === "approved") return "#059669";
-    if (status === "pending") return "#D97706";
-    return "#DC2626";
-  };
-
-  const getStatusBg = (status: string) => {
-    if (status === "approved") return "#D1FAE5";
-    if (status === "pending") return "#FEF3C7";
-    return "#FEE2E2";
-  };
+  const statusColor = (s: string) =>
+    s === "approved" ? "#059669" : s === "pending" ? "#D97706" : "#DC2626";
+  const statusBg = (s: string) =>
+    s === "approved" ? "#D1FAE5" : s === "pending" ? "#FEF3C7" : "#FEE2E2";
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Property Approvals</Text>
-          <Text style={styles.headerSub}>
-            {pendingCount > 0 ? `${pendingCount} pending review` : "All caught up!"}
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={22} color="#1D4ED8" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Property Approvals</Text>
+          <Text style={styles.subtitle}>
+            {pendingCount > 0 ? `${pendingCount} awaiting review` : "All reviewed"}
           </Text>
         </View>
-        <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
+        <TouchableOpacity onPress={() => { setLoading(true); fetchProperties(); }} style={styles.refreshBtn}>
           <Ionicons name="refresh-outline" size={20} color="#1D4ED8" />
         </TouchableOpacity>
       </View>
 
+      {/* Summary */}
+      <View style={styles.summaryRow}>
+        <View style={[styles.summaryCard, { backgroundColor: "#FEF3C7" }]}>
+          <Ionicons name="time-outline" size={18} color="#D97706" />
+          <Text style={[styles.summaryNum, { color: "#D97706" }]}>{pendingCount}</Text>
+          <Text style={styles.summaryLabel}>Pending</Text>
+        </View>
+        <View style={[styles.summaryCard, { backgroundColor: "#D1FAE5" }]}>
+          <Ionicons name="checkmark-circle-outline" size={18} color="#059669" />
+          <Text style={[styles.summaryNum, { color: "#059669" }]}>{approvedCount}</Text>
+          <Text style={styles.summaryLabel}>Approved</Text>
+        </View>
+        <View style={[styles.summaryCard, { backgroundColor: "#FEE2E2" }]}>
+          <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+          <Text style={[styles.summaryNum, { color: "#DC2626" }]}>{rejectedCount}</Text>
+          <Text style={styles.summaryLabel}>Rejected</Text>
+        </View>
+      </View>
+
+      {/* Search */}
+      <View style={styles.searchRow}>
+        <Ionicons name="search-outline" size={16} color="#94A3B8" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by name, owner or address..."
+          value={search}
+          onChangeText={setSearch}
+          placeholderTextColor="#94A3B8"
+        />
+        {!!search && (
+          <TouchableOpacity onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Filter Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabs}>
-        {(["pending", "approved", "rejected", "all"] as const).map((f) => (
+      <View style={styles.tabsRow}>
+        {(["pending", "all"] as const).map((f) => (
           <TouchableOpacity
             key={f}
             style={[styles.tab, filter === f && styles.tabActive]}
             onPress={() => setFilter(f)}
           >
-            {f === "pending" && pendingCount > 0 && (
-              <View style={styles.badge}><Text style={styles.badgeText}>{pendingCount}</Text></View>
-            )}
             <Text style={[styles.tabText, filter === f && styles.tabTextActive]}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "pending" ? `Pending (${pendingCount})` : `All (${properties.length})`}
             </Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       {loading ? (
         <View style={styles.center}>
@@ -150,124 +197,108 @@ export default function AdminApprovals() {
         </View>
       ) : (
         <ScrollView
-          style={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProperties(); }} colors={["#1D4ED8"]} />}
+          contentContainerStyle={styles.list}
         >
-          {filteredProperties.length === 0 ? (
+          {filtered.length === 0 ? (
             <View style={styles.empty}>
               <MaterialCommunityIcons name="home-search-outline" size={64} color="#CBD5E1" />
-              <Text style={styles.emptyTitle}>No {filter} properties</Text>
-              <Text style={styles.emptySub}>
-                {filter === "pending" ? "No properties awaiting approval." : `No ${filter} listings found.`}
+              <Text style={styles.emptyTitle}>
+                {filter === "pending" ? "No pending properties" : "No properties found"}
               </Text>
             </View>
           ) : (
-            filteredProperties.map((property) => (
-              <View key={property.id} style={styles.card}>
-                {/* Image */}
-                {property.first_image ? (
-                  <Image
-                    source={{ uri: `${API_BASE_URL}/${property.first_image}` }}
-                    style={styles.cardImage}
-                    resizeMode="cover"
-                  />
+            filtered.map((p) => (
+              <View key={p.id} style={styles.card}>
+                {p.first_image ? (
+                  <Image source={{ uri: `${BASE}/${p.first_image}` }} style={styles.cardImage} resizeMode="cover" />
                 ) : (
-                  <View style={[styles.cardImage, styles.imagePlaceholder]}>
-                    <Text style={styles.imagePlaceholderIcon}>🏢</Text>
+                  <View style={[styles.cardImage, styles.noImage]}>
+                    <Text style={{ fontSize: 44 }}>🏢</Text>
                   </View>
                 )}
 
-                {/* Status Badge */}
-                <View style={[styles.statusBadge, { backgroundColor: getStatusBg(property.status) }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(property.status) }]}>
-                    {property.status.toUpperCase()}
+                <View style={[styles.statusBadge, { backgroundColor: statusBg(p.status) }]}>
+                  <Text style={[styles.statusText, { color: statusColor(p.status) }]}>
+                    {p.status.toUpperCase()}
                   </Text>
                 </View>
 
                 <View style={styles.cardBody}>
-                  {/* Property Info */}
-                  <View style={styles.propertyHeader}>
+                  <View style={styles.rowBetween}>
                     <View style={styles.typeChip}>
-                      <Text style={styles.typeChipText}>{property.property_type || "Property"}</Text>
+                      <Text style={styles.typeChipText}>{p.property_type || "Property"}</Text>
                     </View>
-                    <Text style={styles.dateText}>
-                      Submitted {new Date(property.created_at).toLocaleDateString()}
+                    <Text style={styles.dateText}>{new Date(p.created_at).toLocaleDateString()}</Text>
+                  </View>
+
+                  <Text style={styles.propName}>{p.name}</Text>
+
+                  <View style={styles.infoRow}>
+                    <Ionicons name="location-outline" size={13} color="#64748B" />
+                    <Text style={styles.infoText}>{p.address}</Text>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Ionicons name="cash-outline" size={13} color="#64748B" />
+                    <Text style={styles.infoText}>
+                      ₱{Number(p.price).toLocaleString()} / month
+                      {p.deposit > 0 ? `  ·  ₱${Number(p.deposit).toLocaleString()} deposit` : ""}
                     </Text>
                   </View>
 
-                  <Text style={styles.propertyName}>{property.name}</Text>
-
-                  <View style={styles.infoRow}>
-                    <Ionicons name="location-outline" size={14} color="#64748B" />
-                    <Text style={styles.infoText}>{property.address}</Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <MaterialCommunityIcons name="cash" size={14} color="#64748B" />
-                    <Text style={styles.infoText}>₱{Number(property.price).toLocaleString()} / month</Text>
-                  </View>
-
-                  {property.amenities ? (
+                  {(p.rooms > 0 || p.amenities) ? (
                     <View style={styles.infoRow}>
-                      <Ionicons name="checkmark-circle-outline" size={14} color="#64748B" />
-                      <Text style={styles.infoText} numberOfLines={1}>{property.amenities}</Text>
+                      <Ionicons name="bed-outline" size={13} color="#64748B" />
+                      <Text style={styles.infoText}>
+                        {p.rooms} room{p.rooms !== 1 ? "s" : ""}
+                        {p.amenities ? `  ·  ${p.amenities}` : ""}
+                      </Text>
                     </View>
                   ) : null}
 
-                  {/* Owner Info */}
                   <View style={styles.ownerBox}>
-                    <Ionicons name="person-outline" size={14} color="#1D4ED8" />
-                    <Text style={styles.ownerText}>
-                      {property.owner_name || "Unknown Owner"}
-                      {property.owner_email ? ` · ${property.owner_email}` : ""}
+                    <Ionicons name="person-circle-outline" size={15} color="#1D4ED8" />
+                    <Text style={styles.ownerText} numberOfLines={1}>
+                      {p.owner_name || "Unknown Owner"}
+                      {p.owner_email ? `  ·  ${p.owner_email}` : ""}
                     </Text>
                   </View>
 
-                  {/* Action Buttons — only for pending */}
-                  {property.status === "pending" && (
+                  {/* ACTION BUTTONS - only for pending */}
+                  {p.status === "pending" && (
                     <View style={styles.actionRow}>
                       <TouchableOpacity
-                        style={[styles.actionBtn, styles.rejectBtn]}
-                        onPress={() => handleAction(property.id, "rejected", property.name)}
-                        disabled={actionLoading === property.id}
+                        style={styles.rejectBtn}
+                        onPress={() => handleAction(p, "rejected")}
+                        disabled={actionLoading === p.id}
                       >
-                        {actionLoading === property.id ? (
-                          <ActivityIndicator size="small" color="#DC2626" />
-                        ) : (
-                          <>
-                            <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
-                            <Text style={styles.rejectBtnText}>Reject</Text>
-                          </>
-                        )}
+                        {actionLoading === p.id
+                          ? <ActivityIndicator size="small" color="#DC2626" />
+                          : <><Ionicons name="close-circle-outline" size={16} color="#DC2626" /><Text style={styles.rejectBtnText}>Reject</Text></>}
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={[styles.actionBtn, styles.approveBtn]}
-                        onPress={() => handleAction(property.id, "approved", property.name)}
-                        disabled={actionLoading === property.id}
+                        style={styles.approveBtn}
+                        onPress={() => handleAction(p, "approved")}
+                        disabled={actionLoading === p.id}
                       >
-                        {actionLoading === property.id ? (
-                          <ActivityIndicator size="small" color="#fff" />
-                        ) : (
-                          <>
-                            <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-                            <Text style={styles.approveBtnText}>Approve</Text>
-                          </>
-                        )}
+                        {actionLoading === p.id
+                          ? <ActivityIndicator size="small" color="#fff" />
+                          : <><Ionicons name="checkmark-circle-outline" size={16} color="#fff" /><Text style={styles.approveBtnText}>Approve</Text></>}
                       </TouchableOpacity>
                     </View>
                   )}
 
-                  {/* Already decided */}
-                  {property.status !== "pending" && (
-                    <View style={[styles.decidedBox, { backgroundColor: getStatusBg(property.status) }]}>
+                  {p.status !== "pending" && (
+                    <View style={[styles.decidedRow, { backgroundColor: statusBg(p.status) }]}>
                       <Ionicons
-                        name={property.status === "approved" ? "checkmark-circle" : "close-circle"}
-                        size={16}
-                        color={getStatusColor(property.status)}
+                        name={p.status === "approved" ? "checkmark-circle" : "close-circle"}
+                        size={14}
+                        color={statusColor(p.status)}
                       />
-                      <Text style={[styles.decidedText, { color: getStatusColor(property.status) }]}>
-                        This property has been {property.status}
+                      <Text style={[styles.decidedText, { color: statusColor(p.status) }]}>
+                        This property has been {p.status}
                       </Text>
                     </View>
                   )}
@@ -275,7 +306,7 @@ export default function AdminApprovals() {
               </View>
             ))
           )}
-          <View style={{ height: 24 }} />
+          <View style={{ height: 32 }} />
         </ScrollView>
       )}
     </View>
@@ -283,47 +314,48 @@ export default function AdminApprovals() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", padding: 16, paddingTop: 20, borderBottomWidth: 1, borderBottomColor: "#E2E8F0" },
-  headerTitle: { fontSize: 20, fontWeight: "800", color: "#0F172A" },
-  headerSub: { fontSize: 13, color: "#64748B", marginTop: 2 },
-  refreshBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
-  tabsScroll: { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E2E8F0" },
-  tabs: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  tab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: "#F1F5F9", flexDirection: "row", alignItems: "center", gap: 6 },
-  tabActive: { backgroundColor: "#1D4ED8" },
-  tabText: { fontSize: 13, fontWeight: "600", color: "#64748B" },
+  container:     { flex: 1, backgroundColor: "#F8FAFC" },
+  header:        { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", padding: 14, paddingTop: 18, borderBottomWidth: 1, borderBottomColor: "#E2E8F0", gap: 8 },
+  backBtn:       { width: 36, height: 36, borderRadius: 10, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
+  title:         { fontSize: 18, fontWeight: "800", color: "#0F172A" },
+  subtitle:      { fontSize: 12, color: "#64748B", marginTop: 1 },
+  refreshBtn:    { width: 36, height: 36, borderRadius: 10, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
+  summaryRow:    { flexDirection: "row", gap: 10, padding: 12, paddingBottom: 4 },
+  summaryCard:   { flex: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 3 },
+  summaryNum:    { fontSize: 20, fontWeight: "800" },
+  summaryLabel:  { fontSize: 11, color: "#64748B" },
+  searchRow:     { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", margin: 12, marginBottom: 6, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1.5, borderColor: "#E2E8F0" },
+  searchInput:   { flex: 1, fontSize: 13, color: "#1E293B" },
+  tabsRow:       { flexDirection: "row", paddingHorizontal: 12, paddingBottom: 10, gap: 8 },
+  tab:           { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: "#F1F5F9" },
+  tabActive:     { backgroundColor: "#1D4ED8" },
+  tabText:       { fontSize: 12, fontWeight: "600", color: "#64748B" },
   tabTextActive: { color: "#fff" },
-  badge: { backgroundColor: "#EF4444", borderRadius: 10, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
-  center: { alignItems: "center", justifyContent: "center", paddingVertical: 80 },
-  loadingText: { marginTop: 12, color: "#64748B", fontSize: 14 },
-  list: { flex: 1 },
-  empty: { alignItems: "center", paddingVertical: 80 },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: "#94A3B8", marginTop: 16 },
-  emptySub: { fontSize: 14, color: "#CBD5E1", marginTop: 6, textAlign: "center" },
-  card: { backgroundColor: "#fff", marginHorizontal: 16, marginTop: 14, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 },
-  cardImage: { width: "100%", height: 160, backgroundColor: "#E2E8F0" },
-  imagePlaceholder: { alignItems: "center", justifyContent: "center" },
-  imagePlaceholderIcon: { fontSize: 52 },
-  statusBadge: { position: "absolute", top: 12, right: 12, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusText: { fontSize: 11, fontWeight: "700" },
-  cardBody: { padding: 14 },
-  propertyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  typeChip: { backgroundColor: "#EFF6FF", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  typeChipText: { fontSize: 12, color: "#2563EB", fontWeight: "600" },
-  dateText: { fontSize: 11, color: "#94A3B8" },
-  propertyName: { fontSize: 17, fontWeight: "700", color: "#0F172A", marginBottom: 8 },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 },
-  infoText: { fontSize: 13, color: "#475569", flex: 1 },
-  ownerBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 8, marginTop: 8, marginBottom: 4 },
-  ownerText: { fontSize: 12, color: "#1D4ED8", fontWeight: "500", flex: 1 },
-  actionRow: { flexDirection: "row", gap: 10, marginTop: 12 },
-  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10 },
-  rejectBtn: { backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA" },
-  rejectBtnText: { color: "#DC2626", fontSize: 14, fontWeight: "700" },
-  approveBtn: { backgroundColor: "#059669" },
-  approveBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  decidedBox: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, padding: 10, marginTop: 10 },
-  decidedText: { fontSize: 13, fontWeight: "600", textTransform: "capitalize" },
+  center:        { alignItems: "center", paddingVertical: 80 },
+  loadingText:   { marginTop: 12, color: "#64748B" },
+  list:          { paddingHorizontal: 14 },
+  empty:         { alignItems: "center", paddingVertical: 60, gap: 10 },
+  emptyTitle:    { fontSize: 18, fontWeight: "700", color: "#94A3B8", marginTop: 8 },
+  card:          { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  cardImage:     { width: "100%", height: 160 },
+  noImage:       { backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  statusBadge:   { position: "absolute", top: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusText:    { fontSize: 10, fontWeight: "700" },
+  cardBody:      { padding: 14 },
+  rowBetween:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  typeChip:      { backgroundColor: "#EFF6FF", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 6 },
+  typeChipText:  { fontSize: 11, color: "#2563EB", fontWeight: "600" },
+  dateText:      { fontSize: 11, color: "#94A3B8" },
+  propName:      { fontSize: 16, fontWeight: "700", color: "#0F172A", marginBottom: 8 },
+  infoRow:       { flexDirection: "row", alignItems: "flex-start", gap: 6, marginBottom: 5 },
+  infoText:      { fontSize: 12, color: "#475569", flex: 1 },
+  ownerBox:      { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 8, marginTop: 6 },
+  ownerText:     { fontSize: 12, color: "#1D4ED8", fontWeight: "500", flex: 1 },
+  actionRow:     { flexDirection: "row", gap: 10, marginTop: 14 },
+  rejectBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA" },
+  rejectBtnText: { color: "#DC2626", fontSize: 13, fontWeight: "700" },
+  approveBtn:    { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: "#059669" },
+  approveBtnText:{ color: "#fff", fontSize: 13, fontWeight: "700" },
+  decidedRow:    { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, padding: 8, marginTop: 10 },
+  decidedText:   { fontSize: 12, fontWeight: "600" },
 });

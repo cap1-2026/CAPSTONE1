@@ -1,4 +1,6 @@
+// app/tenant/_layout.tsx
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Slot, useRouter, useSegments } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -8,6 +10,11 @@ export default function TenantLayout() {
   const segments = useSegments();
   const lastSegment = segments[segments.length - 1];
   const isHome = lastSegment === "home";
+
+  async function handleLogout() {
+    await AsyncStorage.removeItem("@padfinder_user");
+    router.replace("/login/[role]" as any);
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
@@ -25,15 +32,19 @@ export default function TenantLayout() {
             <Text style={styles.logoText}>PadFinder</Text>
           </View>
         </View>
+
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => router.push("/tenant/dashboard")} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => router.push("/tenant/dashboard" as any)} style={styles.iconBtn}>
             <MaterialCommunityIcons name="view-dashboard-outline" size={20} color="#374151" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/tenant/approvals")} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => router.push("/tenant/approvals" as any)} style={styles.iconBtn}>
             <MaterialCommunityIcons name="clock-check-outline" size={20} color="#374151" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/tenant/notifications")} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => router.push("/tenant/notifications" as any)} style={styles.iconBtn}>
             <Ionicons name="notifications-outline" size={20} color="#374151" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
           </TouchableOpacity>
         </View>
       </View>
@@ -43,12 +54,13 @@ export default function TenantLayout() {
 }
 
 const styles = StyleSheet.create({
-  header: { height: 58, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  backBtn: { width: 34, height: 34, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
-  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  logoIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: '#1D4ED8', alignItems: 'center', justifyContent: 'center' },
-  logoText: { fontSize: 17, fontWeight: '800', color: '#0F172A', letterSpacing: -0.3 },
+  header:      { height: 58, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
+  headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backBtn:     { width: 34, height: 34, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  logoRow:     { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  logoIcon:    { width: 30, height: 30, borderRadius: 8, backgroundColor: '#1D4ED8', alignItems: 'center', justifyContent: 'center' },
+  logoText:    { fontSize: 17, fontWeight: '800', color: '#0F172A', letterSpacing: -0.3 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  iconBtn: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  iconBtn:     { width: 36, height: 36, borderRadius: 8, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  logoutBtn:   { width: 36, height: 36, borderRadius: 8, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center' },
 });

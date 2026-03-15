@@ -1,377 +1,244 @@
+// app/register/[role].tsx
+// Works for both "tenant" and "owner" roles
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert, KeyboardAvoidingView, Platform,
+  ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View,
+} from "react-native";
 import API_ENDPOINTS from "../../config/api";
 
-// Cross-platform alert function that works on web and native
-function showAlert(title: string, message: string, onPress?: () => void) {
-  if (Platform.OS === 'web') {
-    // Use browser's native alert for web
-    alert(`${title}\n\n${message}`);
-    if (onPress) onPress();
-  } else {
-    // Use React Native Alert for mobile
-    Alert.alert(title, message, [{ text: "OK", onPress }]);
-  }
-}
-
-export default function RoleRegister() {
+export default function RegisterScreen() {
   const { role } = useLocalSearchParams() as { role?: string };
-  const router = useRouter();
-  const [fullname, setFullname] = useState("");
-  const [address, setAddress] = useState("");
-  const [contact, setContact] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [emailError, setEmailError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const router   = useRouter();
 
-  const displayRole = role === "owner" ? "Property Owner" : "Tenant";
-  const roleColor = role === "owner" ? "#1565D8" : "#007AFF";
+  const isOwner      = role === "owner";
+  const displayRole  = isOwner ? "Property Owner" : "Tenant";
+  const accentColor  = isOwner ? "#7C3AED" : "#2563EB";
+  const accentLight  = isOwner ? "#F5F3FF" : "#EFF6FF";
+  const accentBorder = isOwner ? "#E9D5FF" : "#BFDBFE";
+
+  const [fullname,  setFullname]  = useState("");
+  const [address,   setAddress]   = useState("");
+  const [contact,   setContact]   = useState("");
+  const [email,     setEmail]     = useState("");
+  const [password,  setPassword]  = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPw,    setShowPw]    = useState(false);
+  const [showCpw,   setShowCpw]   = useState(false);
+  const [loading,   setLoading]   = useState(false);
+
+  function validate(): boolean {
+    if (!fullname.trim() || !address.trim() || !contact.trim() || !email.trim()) {
+      Alert.alert("Missing Fields", "Please fill in all required fields."); return false;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      Alert.alert("Invalid Email", "Please enter a valid email address."); return false;
+    }
+    if (password.length < 8) {
+      Alert.alert("Weak Password", "Password must be at least 8 characters."); return false;
+    }
+    if (!/[A-Z]/.test(password)) {
+      Alert.alert("Weak Password", "Password must contain at least one uppercase letter."); return false;
+    }
+    if (!/[a-z]/.test(password)) {
+      Alert.alert("Weak Password", "Password must contain at least one lowercase letter."); return false;
+    }
+    if (!/[0-9]/.test(password)) {
+      Alert.alert("Weak Password", "Password must contain at least one number."); return false;
+    }
+    if (password !== confirmPw) {
+      Alert.alert("Password Mismatch", "Passwords do not match."); return false;
+    }
+    return true;
+  }
 
   async function handleRegister() {
-    console.log("=== REGISTER BUTTON CLICKED ===");
-    console.log("Fullname:", fullname);
-    console.log("Address:", address);
-    console.log("Contact:", contact);
-    console.log("Email:", email);
-    console.log("Password length:", password.length);
-    console.log("Confirm Password length:", confirmPassword.length);
-
-    setEmailError("");
-    setPasswordError("");
-    if (!fullname || !address || !contact || !email || !password || !confirmPassword) {
-      const missing = [];
-      if (!fullname) missing.push("Full Name");
-      if (!address) missing.push("Address");
-      if (!contact) missing.push("Contact");
-      if (!email) missing.push("Email");
-      if (!password) missing.push("Password");
-      if (!confirmPassword) missing.push("Confirm Password");
-      showAlert("Validation", `Please fill all fields. Missing: ${missing.join(", ")}`);
-      return;
-    }
-
-    // Gmail validation
-    if (!email.endsWith("@gmail.com")) {
-      setEmailError("Email must be a valid Gmail address (example@gmail.com)");
-      return;
-    }
-    // Password match validation
-    if (password !== confirmPassword) {
-      setPasswordError("Passwords do not match");
-      return;
-    }
-    // Basic email format validation
-    const emailRegex = /^[^\s@]+@gmail\.com$/;
-    if (!emailRegex.test(email)) {
-      setEmailError("Please enter a valid Gmail address (example@gmail.com)");
-      return;
-    }
-
+    if (!validate()) return;
+    setLoading(true);
     try {
-      console.log("Attempting registration...");
-      console.log("API URL:", API_ENDPOINTS.REGISTER);
-
-      const requestBody = {
-        fullname,
-        address,
-        contact,
-        email,
-        password,
-        role
-      };
-      console.log("Request body:", JSON.stringify(requestBody, null, 2));
-
-      const response = await fetch(API_ENDPOINTS.REGISTER, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody)
+      const res  = await fetch(API_ENDPOINTS.REGISTER, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ fullname, address, contact, email, password, role: role ?? "tenant" }),
       });
-
-      console.log("Response status:", response.status);
-      const responseText = await response.text();
-      console.log("Response text:", responseText);
-      
-      const data = JSON.parse(responseText);
-      console.log("Response data:", data);
+      const data = await res.json();
 
       if (data.status === "success") {
-        console.log("✅ REGISTRATION SUCCESS - Navigating to confirmation page");
-        // Navigate to confirmation page with user details
         router.replace({
           pathname: "/register/confirmation",
-          params: {
-            role: role ?? "tenant",
-            email: email
-          }
-        });
+          params:   { role: role ?? "tenant", email },
+        } as any);
       } else {
-        console.log("❌ REGISTRATION FAILED - Showing error alert");
-        console.log("Error message:", data.message);
-        showAlert("Registration Failed", data.message || "Could not create account");
+        Alert.alert("Registration Failed", data.message || "Please try again.");
       }
-
-    } catch (error) {
-      console.error("Registration error:", error);
-      console.log("⚠️ SERVER ERROR - Showing error alert");
-      showAlert("Server Error", "Cannot connect to server. Please check your backend is running.");
+    } catch {
+      Alert.alert("Connection Error", "Cannot reach server. Make sure XAMPP is running.");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.wrapper} 
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="always"
-      >
-        {/* Hero Header */}
-        <View style={[styles.header, { backgroundColor: roleColor }]}>
-          {/* Back Button */}
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+    <KeyboardAvoidingView style={styles.wrapper} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
+        {/* Back */}
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={20} color="#374151" />
           </TouchableOpacity>
-          
-          <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="home" size={40} color="#fff" />
-              <Text style={styles.logoText}>PadFinder</Text>
-            </View>
-            <Text style={styles.headerSubtitle}>Find Your Perfect Space</Text>
-          </View>
-          <View style={styles.waveContainer}>
-            <View style={styles.wave} />
-          </View>
         </View>
 
-        {/* Register Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.welcomeText}>Create Account</Text>
-            <Text style={styles.roleText}>Register as {displayRole}</Text>
+        {/* Header */}
+        <View style={styles.headerSection}>
+          <View style={[styles.roleChip, { backgroundColor: accentLight, borderColor: accentBorder }]}>
+            <Ionicons name={isOwner ? "key" : "search"} size={15} color={accentColor} />
+            <Text style={[styles.roleChipText, { color: accentColor }]}>{displayRole}</Text>
           </View>
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join PadFinder as a {displayRole}</Text>
+        </View>
 
-          {/* Full Name Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Full Name</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                placeholder="Enter your full name"
-                value={fullname}
-                onChangeText={setFullname}
-                style={styles.input}
-                placeholderTextColor="#999"
-              />
+        {/* Form */}
+        <View style={styles.formCard}>
+
+          {/* Full Name */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Full Name *</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.icon} />
+              <TextInput style={styles.input} placeholder="Juan Dela Cruz" value={fullname} onChangeText={setFullname} placeholderTextColor="#C4C9D4" />
             </View>
           </View>
 
-          {/* Address Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Address</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="home-outline" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                placeholder="Enter your address"
-                value={address}
-                onChangeText={setAddress}
-                style={styles.input}
-                placeholderTextColor="#999"
-              />
+          {/* Address */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Home Address *</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="location-outline" size={18} color="#9CA3AF" style={styles.icon} />
+              <TextInput style={styles.input} placeholder="123 Main St, Barangay, City" value={address} onChangeText={setAddress} placeholderTextColor="#C4C9D4" />
             </View>
           </View>
 
-          {/* Contact Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Contact Number</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                placeholder="Enter your contact number"
-                value={contact}
-                onChangeText={setContact}
-                style={styles.input}
-                keyboardType="phone-pad"
-                placeholderTextColor="#999"
-              />
+          {/* Contact */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Contact Number *</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="call-outline" size={18} color="#9CA3AF" style={styles.icon} />
+              <TextInput style={styles.input} placeholder="09XX XXX XXXX" value={contact} onChangeText={setContact} keyboardType="phone-pad" placeholderTextColor="#C4C9D4" />
             </View>
           </View>
 
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={20} color={emailError ? "#D32F2F" : "#666"} style={styles.inputIcon} />
-              <TextInput
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={text => {
-                  setEmail(text);
-                  setEmailError("");
-                }}
-                style={[styles.input, emailError && { borderColor: '#D32F2F', color: '#D32F2F' }]}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                placeholderTextColor="#999"
-              />
+          {/* Email */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Email Address *</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.icon} />
+              <TextInput style={styles.input} placeholder="you@example.com" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholderTextColor="#C4C9D4" />
             </View>
-            {emailError ? (
-              <Text style={{ color: '#D32F2F', fontSize: 12, marginTop: 4 }}>
-                <Ionicons name="alert-circle" size={14} color="#D32F2F" /> {emailError}
-              </Text>
-            ) : null}
           </View>
 
-          {/* Password Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                placeholder="Create a password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                style={styles.input}
-                placeholderTextColor="#999"
-              />
-              <TouchableOpacity 
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeButton}
-              >
-                <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#666" />
+          {/* Password */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Password *</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.icon} />
+              <TextInput style={[styles.input, { paddingRight: 44 }]} placeholder="Min 8 chars, upper, lower, number" value={password} onChangeText={setPassword} secureTextEntry={!showPw} placeholderTextColor="#C4C9D4" />
+              <TouchableOpacity onPress={() => setShowPw(!showPw)} style={styles.eyeBtn}>
+                <Ionicons name={showPw ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Confirm Password Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Confirm Password</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color={passwordError ? "#D32F2F" : "#666"} style={styles.inputIcon} />
-              <TextInput
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChangeText={text => {
-                  setConfirmPassword(text);
-                  setPasswordError("");
-                }}
-                secureTextEntry={!showConfirmPassword}
-                style={[styles.input, passwordError && { borderColor: '#D32F2F', color: '#D32F2F' }]}
-                placeholderTextColor="#999"
-              />
-              <TouchableOpacity 
-                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={styles.eyeButton}
-              >
-                <Ionicons name={showConfirmPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#666" />
+          {/* Confirm Password */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Confirm Password *</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.icon} />
+              <TextInput style={[styles.input, { paddingRight: 44 }]} placeholder="Re-enter password" value={confirmPw} onChangeText={setConfirmPw} secureTextEntry={!showCpw} placeholderTextColor="#C4C9D4" />
+              <TouchableOpacity onPress={() => setShowCpw(!showCpw)} style={styles.eyeBtn}>
+                <Ionicons name={showCpw ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            {passwordError ? (
-              <Text style={{ color: '#D32F2F', fontSize: 12, marginTop: 4 }}>
-                <Ionicons name="alert-circle" size={14} color="#D32F2F" /> {passwordError}
-              </Text>
-            ) : null}
           </View>
 
-          {/* Terms & Conditions */}
-          <View style={styles.termsContainer}>
-            <Text style={styles.termsText}>
-              By registering, you agree to our Terms & Conditions and Privacy Policy
-            </Text>
+          {/* Password requirements hint */}
+          <View style={styles.pwHints}>
+            {[
+              { ok: password.length >= 8,      text: "At least 8 characters" },
+              { ok: /[A-Z]/.test(password),    text: "One uppercase letter" },
+              { ok: /[a-z]/.test(password),    text: "One lowercase letter" },
+              { ok: /[0-9]/.test(password),    text: "One number" },
+            ].map((h, i) => (
+              <View key={i} style={styles.pwHintRow}>
+                <Ionicons name={h.ok ? "checkmark-circle" : "ellipse-outline"} size={14} color={h.ok ? "#059669" : "#CBD5E1"} />
+                <Text style={[styles.pwHintText, h.ok && styles.pwHintTextOk]}>{h.text}</Text>
+              </View>
+            ))}
           </View>
+
+          {/* Submit */}
+          <TouchableOpacity
+            style={[styles.submitBtn, { backgroundColor: accentColor }, loading && styles.submitBtnDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.submitBtnText}>{loading ? "Creating account..." : "Create Account"}</Text>
+          </TouchableOpacity>
 
           {/* Divider */}
-          <View style={styles.divider}>
+          <View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
+            <Text style={styles.dividerText}>Already have an account?</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Login Link */}
-          <TouchableOpacity 
-            style={styles.loginLink}
+          <TouchableOpacity
+            style={[styles.loginBtn, { borderColor: accentBorder }]}
             onPress={() => router.push({ pathname: "/login/[role]", params: { role: role ?? "tenant" } })}
           >
-            <Text style={styles.loginLinkText}>
-              Already have an account? <Text style={[styles.loginLinkBold, { color: roleColor }]}>Login</Text>
-            </Text>
+            <Text style={[styles.loginBtnText, { color: accentColor }]}>Sign In</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Register Button */}
-        <Pressable 
-          style={({ pressed }) => ({
-            paddingVertical: 16,
-            borderRadius: 12,
-            alignItems: 'center',
-            marginHorizontal: 20,
-            marginTop: -10,
-            marginBottom: 20,
-            backgroundColor: pressed ? '#0056b3' : roleColor,
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-          })}
-          onPress={() => {
-            console.log("🟢 CREATE ACCOUNT PRESSED!");
-            handleRegister();
-          }}
-        >
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Create Account</Text>
-        </Pressable>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>© 2026 PadFinder. All rights reserved.</Text>
-        </View>
+        <Text style={styles.footer}>© 2026 PadFinder. All rights reserved.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: "#f5f7fa" },
-  container: { flexGrow: 1, paddingBottom: 50 },
-  header: { paddingTop: 60, paddingBottom: 80, paddingHorizontal: 20, position: "relative" },
-  backButton: { position: "absolute", top: 50, left: 20, zIndex: 10, padding: 8 },
-  headerContent: { alignItems: "center", zIndex: 1 },
-  logoContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
-  logoText: { fontSize: 36, fontWeight: "800", color: "#fff" },
-  headerSubtitle: { fontSize: 16, color: "#fff", opacity: 0.9 },
-  waveContainer: { position: "absolute", bottom: -1, left: 0, right: 0, height: 30, overflow: "hidden" },
-  wave: { position: "absolute", bottom: -10, left: 0, right: 0, height: 40, backgroundColor: "#f5f7fa", borderTopLeftRadius: 50, borderTopRightRadius: 50 },
-  card: { backgroundColor: "#fff", marginHorizontal: 20, marginTop: -30, borderRadius: 20, padding: 24, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 8, marginBottom: 20 },
-  cardHeader: { marginBottom: 24, alignItems: "center" },
-  welcomeText: { fontSize: 28, fontWeight: "700", color: "#333", marginBottom: 4 },
-  roleText: { fontSize: 14, color: "#666" },
-  inputContainer: { marginBottom: 16 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 },
-  inputWrapper: { flexDirection: "row", alignItems: "center", backgroundColor: "#f9f9f9", borderRadius: 12, borderWidth: 1, borderColor: "#e0e0e0", paddingHorizontal: 16 },
-  inputIcon: { marginRight: 12 },
-  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: "#333" },
-  eyeButton: { padding: 4 },
-  termsContainer: { marginVertical: 16 },
-  termsText: { fontSize: 12, color: "#666", textAlign: "center", lineHeight: 18 },
-  termsLink: { fontWeight: "600", textDecorationLine: "underline" },
-  registerButton: { paddingVertical: 16, borderRadius: 12, alignItems: "center", marginBottom: 20 },
-  registerButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  divider: { flexDirection: "row", alignItems: "center", marginVertical: 20 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#e0e0e0" },
-  dividerText: { marginHorizontal: 12, fontSize: 12, color: "#999" },
-  loginLink: { alignItems: "center", paddingVertical: 12 },
-  loginLinkText: { fontSize: 14, color: "#666" },
-  loginLinkBold: { fontWeight: "700" },
-  footer: { paddingVertical: 30, alignItems: "center" },
-  footerText: { fontSize: 12, color: "#999" },
+  wrapper:        { flex: 1, backgroundColor: "#F8FAFC" },
+  container:      { paddingBottom: 40 },
+  topBar:         { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 8 },
+  backBtn:        { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  headerSection:  { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
+  roleChip:       { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
+  roleChipText:   { fontSize: 13, fontWeight: "600" },
+  title:          { fontSize: 28, fontWeight: "800", color: "#0F172A", letterSpacing: -0.5, marginBottom: 6 },
+  subtitle:       { fontSize: 15, color: "#64748B" },
+  formCard:       { backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 20, padding: 24, shadowColor: "#1E3A8A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6, marginBottom: 24 },
+  fieldGroup:     { marginBottom: 16 },
+  fieldLabel:     { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  inputWrap:      { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 14 },
+  icon:           { marginRight: 10 },
+  input:          { flex: 1, paddingVertical: 13, fontSize: 15, color: "#1E293B" },
+  eyeBtn:         { padding: 4 },
+  pwHints:        { backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 16, gap: 6 },
+  pwHintRow:      { flexDirection: "row", alignItems: "center", gap: 8 },
+  pwHintText:     { fontSize: 12, color: "#94A3B8" },
+  pwHintTextOk:   { color: "#059669" },
+  submitBtn:      { paddingVertical: 15, borderRadius: 12, alignItems: "center", marginBottom: 20 },
+  submitBtnDisabled: { opacity: 0.6 },
+  submitBtnText:  { color: "#fff", fontSize: 16, fontWeight: "700" },
+  dividerRow:     { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+  dividerLine:    { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  dividerText:    { fontSize: 13, color: "#94A3B8" },
+  loginBtn:       { paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1.5 },
+  loginBtnText:   { fontSize: 15, fontWeight: "700" },
+  footer:         { textAlign: "center", fontSize: 12, color: "#94A3B8" },
 });

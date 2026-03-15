@@ -2,10 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, FlatList, RefreshControl,
+  ActivityIndicator, Alert, FlatList, RefreshControl,
   StyleSheet, Text, TextInput, TouchableOpacity, View
 } from "react-native";
-import { API_BASE_URL } from "../../config/api";
+import API_ENDPOINTS from "../../config/api";
 
 interface User {
   user_id: number;
@@ -25,11 +25,12 @@ export default function AdminUsers() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/get_users.php?_t=${Date.now()}`);
+      const res = await fetch(`${API_ENDPOINTS.GET_USERS}?_t=${Date.now()}`);
       const data = await res.json();
       if (data.status === "success") setUsers(data.data ?? []);
+      else Alert.alert("Error", data.message || "Could not load users.");
     } catch {
-      // silently fail
+      Alert.alert("Connection Error", "Cannot reach server. Check your network.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -71,7 +72,7 @@ export default function AdminUsers() {
           <Text style={styles.summaryLabel}>Owners</Text>
         </View>
         <View style={[styles.summaryCard, { backgroundColor: "#EFF6FF" }]}>
-          <Ionicons name="search-outline" size={20} color="#2563EB" />
+          <Ionicons name="person-outline" size={20} color="#2563EB" />
           <Text style={[styles.summaryValue, { color: "#2563EB" }]}>{tenantCount}</Text>
           <Text style={styles.summaryLabel}>Tenants</Text>
         </View>
@@ -132,7 +133,7 @@ export default function AdminUsers() {
                 <Text style={styles.userDate}>Joined {new Date(item.created_at).toLocaleDateString()}</Text>
               </View>
               <View style={[styles.roleBadge, { backgroundColor: item.role === "owner" ? "#F5F3FF" : "#EFF6FF" }]}>
-                <Ionicons name={item.role === "owner" ? "key-outline" : "search-outline"} size={12} color={item.role === "owner" ? "#7C3AED" : "#2563EB"} />
+                <Ionicons name={item.role === "owner" ? "key-outline" : "person-outline"} size={12} color={item.role === "owner" ? "#7C3AED" : "#2563EB"} />
                 <Text style={[styles.roleText, { color: item.role === "owner" ? "#7C3AED" : "#2563EB" }]}>
                   {item.role.charAt(0).toUpperCase() + item.role.slice(1)}
                 </Text>
