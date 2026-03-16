@@ -15,6 +15,14 @@ import { UserStorage } from "../../../utils/userStorage";
 const LEASE_OPTIONS = ["1 month", "3 months", "6 months", "12 months", "24 months"];
 const ID_TYPES = ["Passport", "Driver's License", "National ID (PhilSys)", "SSS ID", "GSIS ID", "Voter's ID", "PRC ID"];
 
+function showAlert(title: string, message?: string) {
+  if (Platform.OS === "web") {
+    window.alert(message ? `${title}\n\n${message}` : title);
+  } else {
+    Alert.alert(title, message);
+  }
+}
+
 export default function BookingPage() {
   const router = useRouter();
   const { id: propertyId } = useLocalSearchParams<{ id: string }>();
@@ -59,19 +67,19 @@ export default function BookingPage() {
 
   async function pickIdImage() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Permission needed", "Allow photo access to upload your ID."); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    if (status !== "granted") { showAlert("Permission needed", "Allow photo access to upload your ID."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images" as any, quality: 0.8 });
     if (!result.canceled && result.assets[0]) setIdImage(result.assets[0]);
   }
 
   function validate(): boolean {
-    if (!fullName.trim())    { Alert.alert("Missing", "Full name is required."); return false; }
-    if (!email.trim())       { Alert.alert("Missing", "Email is required."); return false; }
-    if (!phone.trim())       { Alert.alert("Missing", "Phone number is required."); return false; }
-    if (!currentAddress.trim()) { Alert.alert("Missing", "Current address is required."); return false; }
-    if (!idType)             { Alert.alert("Missing", "Please select an ID type."); return false; }
-    if (!idNumber.trim())    { Alert.alert("Missing", "ID number is required."); return false; }
-    if (!moveIn.trim())      { Alert.alert("Missing", "Move-in date is required (YYYY-MM-DD)."); return false; }
+    if (!fullName.trim())    { showAlert("Missing", "Full name is required."); return false; }
+    if (!email.trim())       { showAlert("Missing", "Email is required."); return false; }
+    if (!phone.trim())       { showAlert("Missing", "Phone number is required."); return false; }
+    if (!currentAddress.trim()) { showAlert("Missing", "Current address is required."); return false; }
+    if (!idType)             { showAlert("Missing", "Please select an ID type."); return false; }
+    if (!idNumber.trim())    { showAlert("Missing", "ID number is required."); return false; }
+    if (!moveIn.trim())      { showAlert("Missing", "Move-in date is required (YYYY-MM-DD)."); return false; }
     return true;
   }
 
@@ -81,7 +89,7 @@ export default function BookingPage() {
 
     try {
       const user = await UserStorage.getUser();
-      if (!user) { Alert.alert("Error", "Please log in first."); setSubmitting(false); return; }
+      if (!user) { showAlert("Error", "Please log in first."); setSubmitting(false); return; }
 
       const form = new FormData();
       form.append("tenant_id",       String(user.user_id));
@@ -113,10 +121,10 @@ export default function BookingPage() {
       if (data.status === "success") {
         router.replace("/tenant/pending-approval");
       } else {
-        Alert.alert("Booking Failed", data.message || "Please try again.");
+        showAlert("Booking Failed", data.message || "Please try again.");
       }
     } catch (err) {
-      Alert.alert("Connection Error", "Cannot reach the server. Make sure XAMPP is running.");
+      showAlert("Connection Error", "Cannot reach the server. Make sure XAMPP is running.");
     } finally {
       setSubmitting(false);
     }
@@ -134,9 +142,6 @@ export default function BookingPage() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color="#1D4ED8" />
-        </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Book Property</Text>
           {property && <Text style={styles.headerSub} numberOfLines={1}>{property.name}</Text>}
@@ -160,16 +165,16 @@ export default function BookingPage() {
         <Text style={styles.sectionTitle}>Personal Information</Text>
 
         <Text style={styles.label}>Full Name *</Text>
-        <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Juan Dela Cruz" />
+        <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholder="Juan Dela Cruz" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Email Address *</Text>
-        <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="juan@example.com" />
+        <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="juan@example.com" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Phone Number *</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="09XX XXX XXXX" />
+        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="09XX XXX XXXX" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Current Address *</Text>
-        <TextInput style={[styles.input, styles.textArea]} value={currentAddress} onChangeText={setCurrentAddress} multiline placeholder="House / Unit No., Street, Barangay, City" />
+        <TextInput style={[styles.input, styles.textArea]} value={currentAddress} onChangeText={setCurrentAddress} multiline placeholder="House / Unit No., Street, Barangay, City" placeholderTextColor="#9CA3AF" />
 
         {/* Section: ID Verification */}
         <Text style={styles.sectionTitle}>ID Verification</Text>
@@ -190,7 +195,7 @@ export default function BookingPage() {
         )}
 
         <Text style={styles.label}>ID Number *</Text>
-        <TextInput style={styles.input} value={idNumber} onChangeText={setIdNumber} placeholder="Enter your ID number" />
+        <TextInput style={styles.input} value={idNumber} onChangeText={setIdNumber} placeholder="Enter your ID number" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Upload ID Photo (optional)</Text>
         <TouchableOpacity style={[styles.uploadBox, idImage && styles.uploadBoxDone]} onPress={pickIdImage}>
@@ -212,16 +217,16 @@ export default function BookingPage() {
         <Text style={styles.sectionTitle}>Emergency Contact</Text>
 
         <Text style={styles.label}>Contact Name</Text>
-        <TextInput style={styles.input} value={emergencyName} onChangeText={setEmergencyName} placeholder="Maria Dela Cruz" />
+        <TextInput style={styles.input} value={emergencyName} onChangeText={setEmergencyName} placeholder="Maria Dela Cruz" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Contact Phone</Text>
-        <TextInput style={styles.input} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" placeholder="09XX XXX XXXX" />
+        <TextInput style={styles.input} value={emergencyPhone} onChangeText={setEmergencyPhone} keyboardType="phone-pad" placeholder="09XX XXX XXXX" placeholderTextColor="#9CA3AF" />
 
         {/* Section: Lease Details */}
         <Text style={styles.sectionTitle}>Lease Details</Text>
 
         <Text style={styles.label}>Move-in Date * (YYYY-MM-DD)</Text>
-        <TextInput style={styles.input} value={moveIn} onChangeText={setMoveIn} placeholder="2026-04-01" />
+        <TextInput style={styles.input} value={moveIn} onChangeText={setMoveIn} placeholder="2026-04-01" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Lease Duration *</Text>
         <TouchableOpacity style={styles.dropdownBtn} onPress={() => setShowLeaseMenu(!showLeaseMenu)}>
@@ -239,10 +244,10 @@ export default function BookingPage() {
         )}
 
         <Text style={styles.label}>Number of Occupants</Text>
-        <TextInput style={styles.input} value={occupants} onChangeText={setOccupants} keyboardType="number-pad" placeholder="1" />
+        <TextInput style={styles.input} value={occupants} onChangeText={setOccupants} keyboardType="number-pad" placeholder="1" placeholderTextColor="#9CA3AF" />
 
         <Text style={styles.label}>Special Requests / Notes</Text>
-        <TextInput style={[styles.input, styles.textArea]} value={specialRequest} onChangeText={setSpecialRequest} multiline placeholder="Pets, parking needs, etc." />
+        <TextInput style={[styles.input, styles.textArea]} value={specialRequest} onChangeText={setSpecialRequest} multiline placeholder="Pets, parking needs, etc." placeholderTextColor="#9CA3AF" />
 
         {/* Submit */}
         <TouchableOpacity

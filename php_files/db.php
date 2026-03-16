@@ -19,7 +19,7 @@ $conn->set_charset('utf8mb4');
 function db_prepare($conn, $query) {
     $stmt = $conn->prepare($query);
     if (!$stmt) {
-        throw new Exception("Prepare failed: " . $conn->error);
+        throw new Exception("Prepare failed: {$conn->error}");
     }
     return $stmt;
 }

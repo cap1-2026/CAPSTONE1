@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import API_ENDPOINTS from "../../config/api";
@@ -12,6 +12,11 @@ import { UserStorage } from "../../utils/userStorage";
 const BASE = API_ENDPOINTS.APPROVE_BOOKING
   ? API_ENDPOINTS.APPROVE_BOOKING.replace("/approve_booking.php", "")
   : "http://192.168.0.131/Caps";
+
+function showAlert(title: string, msg?: string) {
+  if (Platform.OS === "web") window.alert(msg ? `${title}\n\n${msg}` : title);
+  else Alert.alert(title, msg);
+}
 
 interface Booking {
   id: number;
@@ -25,8 +30,12 @@ interface Booking {
   lease_duration: string;
   occupants: number;
   status: "pending" | "approved" | "rejected";
+  contract_status: "none" | "submitted" | "approved" | "rejected";
+  contract_face_photo: string;
+  contract_id_photo: string;
   created_at: string;
   special_request?: string;
+  payment_status?: "none" | "pending_owner_approval" | "approved" | "rejected";
 }
 
 export default function OwnerBookingsPage() {
@@ -42,9 +51,9 @@ export default function OwnerBookingsPage() {
       const res  = await fetch(`${BASE}/get_bookings.php?owner_id=${id}&_t=${Date.now()}`);
       const data = await res.json();
       if (data.status === "success") setBookings(data.data ?? []);
-      else Alert.alert("Error", data.message || "Could not load bookings.");
+      else showAlert("Error", data.message || "Could not load bookings.");
     } catch {
-      Alert.alert("Error", "Cannot reach server. Make sure XAMPP is running.");
+      showAlert("Error", "Cannot reach server. Make sure XAMPP is running.");
     } finally {
       setLoading(false);
     }
@@ -70,20 +79,87 @@ export default function OwnerBookingsPage() {
       const text = await res.text();
       let data: any = {};
       try { data = JSON.parse(text); } catch {
-        Alert.alert("Server Error", `Unexpected response:\n${text.slice(0, 200)}`);
+        showAlert("Server Error", `Unexpected response:\n${text.slice(0, 200)}`);
         return;
       }
 
       if (data.status === "success") {
-        // Update UI immediately
         setBookings((prev) =>
           prev.map((b) => b.id === bookingId ? { ...b, status: action } : b)
         );
       } else {
-        Alert.alert("Failed", data.message ?? "Please try again.");
+        showAlert("Failed", data.message ?? "Please try again.");
       }
     } catch (e: any) {
-      Alert.alert("Connection Error", e?.message ?? "Could not reach the server.");
+      showAlert("Connection Error", e?.message ?? "Could not reach the server.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleContractAction(bookingId: number, action: "approved" | "rejected") {
+    const label = action === "approved" ? "Approve" : "Reject";
+    const confirmed = Platform.OS === "web"
+      ? window.confirm(`${label} this tenant's contract?`)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(`${label} Contract`, `${label} this tenant's contract?`, [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: label, onPress: () => resolve(true) },
+          ]);
+        });
+    if (!confirmed) return;
+
+    setActionLoading(bookingId);
+    try {
+      const res  = await fetch(`${BASE}/approve_contract.php`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ booking_id: bookingId, action }),
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setBookings((prev) =>
+          prev.map((b) => b.id === bookingId ? { ...b, contract_status: action } : b)
+        );
+      } else {
+        showAlert("Failed", data.message ?? "Please try again.");
+      }
+    } catch (e: any) {
+      showAlert("Connection Error", e?.message ?? "Could not reach the server.");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handlePaymentAction(bookingId: number, action: "approved" | "rejected") {
+    const label = action === "approved" ? "Approve" : "Reject";
+    const confirmed = Platform.OS === "web"
+      ? window.confirm(`${label} this tenant's payment?`)
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(`${label} Payment`, `${label} this tenant's security deposit payment?`, [
+            { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+            { text: label, onPress: () => resolve(true) },
+          ]);
+        });
+    if (!confirmed) return;
+
+    setActionLoading(bookingId);
+    try {
+      const res  = await fetch(API_ENDPOINTS.APPROVE_PAYMENT, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ booking_id: bookingId, action }),
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setBookings((prev) =>
+          prev.map((b) => b.id === bookingId ? { ...b, payment_status: action } : b)
+        );
+      } else {
+        showAlert("Failed", data.message ?? "Please try again.");
+      }
+    } catch (e: any) {
+      showAlert("Connection Error", e?.message ?? "Could not reach the server.");
     } finally {
       setActionLoading(null);
     }
@@ -103,9 +179,6 @@ export default function OwnerBookingsPage() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#007AFF" />
-        </TouchableOpacity>
         <View style={styles.headerTextContainer}>
           <Text style={styles.headerTitle}>Booking Requests</Text>
           {pendingCount > 0 && (
@@ -242,12 +315,128 @@ export default function OwnerBookingsPage() {
                 </View>
               )}
 
-              {booking.status === "approved" && (
-                <View style={styles.approvedInfo}>
-                  <Ionicons name="checkmark-circle" size={15} color="#4CAF50" />
-                  <Text style={styles.approvedInfoText}>Approved — tenant can now proceed to payment.</Text>
-                </View>
-              )}
+              {booking.status === "approved" && (() => {
+                const cs = booking.contract_status ?? "none";
+
+                if (cs === "none") return (
+                  <View style={styles.approvedInfo}>
+                    <Ionicons name="checkmark-circle" size={15} color="#4CAF50" />
+                    <Text style={styles.approvedInfoText}>Booking approved — waiting for tenant to submit contract.</Text>
+                  </View>
+                );
+
+                if (cs === "submitted") return (
+                  <View>
+                    <View style={styles.contractBanner}>
+                      <Ionicons name="document-text" size={15} color="#1D4ED8" />
+                      <Text style={styles.contractBannerText}>Tenant submitted their contract — review and approve.</Text>
+                    </View>
+                    {/* Photos */}
+                    <View style={styles.photosRow}>
+                      <View style={styles.photoBlock}>
+                        <Text style={styles.photoBlockLabel}>Face Photo</Text>
+                        {booking.contract_face_photo ? (
+                          <Image source={{ uri: `${BASE}/${booking.contract_face_photo}` }} style={styles.contractPhoto} />
+                        ) : (
+                          <View style={[styles.contractPhoto, styles.contractPhotoEmpty]}>
+                            <Ionicons name="person-outline" size={24} color="#94A3B8" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.photoBlock}>
+                        <Text style={styles.photoBlockLabel}>ID Photo</Text>
+                        {booking.contract_id_photo ? (
+                          <Image source={{ uri: `${BASE}/${booking.contract_id_photo}` }} style={styles.contractPhoto} />
+                        ) : (
+                          <View style={[styles.contractPhoto, styles.contractPhotoEmpty]}>
+                            <Ionicons name="card-outline" size={24} color="#94A3B8" />
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.contractActions}>
+                      <TouchableOpacity
+                        style={[styles.rejectButton, actionLoading === booking.id && { opacity: 0.5 }]}
+                        onPress={() => handleContractAction(booking.id, "rejected")}
+                        disabled={actionLoading === booking.id}
+                      >
+                        {actionLoading === booking.id
+                          ? <ActivityIndicator size="small" color="#fff" />
+                          : <><Ionicons name="close-circle" size={16} color="#fff" /><Text style={styles.rejectButtonText}>Reject</Text></>}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.approveButton, actionLoading === booking.id && { opacity: 0.5 }]}
+                        onPress={() => handleContractAction(booking.id, "approved")}
+                        disabled={actionLoading === booking.id}
+                      >
+                        {actionLoading === booking.id
+                          ? <ActivityIndicator size="small" color="#fff" />
+                          : <><Ionicons name="checkmark-circle" size={16} color="#fff" /><Text style={styles.approveButtonText}>Approve Contract</Text></>}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+
+                if (cs === "approved") {
+                  const ps = booking.payment_status ?? "none";
+                  if (ps === "none") return (
+                    <View style={styles.approvedInfo}>
+                      <Ionicons name="checkmark-circle" size={15} color="#4CAF50" />
+                      <Text style={styles.approvedInfoText}>Contract approved — waiting for tenant to pay security deposit.</Text>
+                    </View>
+                  );
+                  if (ps === "pending_owner_approval") return (
+                    <View>
+                      <View style={styles.paymentBanner}>
+                        <Ionicons name="cash" size={15} color="#1D4ED8" />
+                        <Text style={styles.paymentBannerText}>Tenant has paid the security deposit — review and approve.</Text>
+                      </View>
+                      <View style={styles.contractActions}>
+                        <TouchableOpacity
+                          style={[styles.rejectButton, actionLoading === booking.id && { opacity: 0.5 }]}
+                          onPress={() => handlePaymentAction(booking.id, "rejected")}
+                          disabled={actionLoading === booking.id}
+                        >
+                          {actionLoading === booking.id
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <><Ionicons name="close-circle" size={16} color="#fff" /><Text style={styles.rejectButtonText}>Reject</Text></>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.approveButton, actionLoading === booking.id && { opacity: 0.5 }]}
+                          onPress={() => handlePaymentAction(booking.id, "approved")}
+                          disabled={actionLoading === booking.id}
+                        >
+                          {actionLoading === booking.id
+                            ? <ActivityIndicator size="small" color="#fff" />
+                            : <><Ionicons name="checkmark-circle" size={16} color="#fff" /><Text style={styles.approveButtonText}>Approve Payment</Text></>}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                  if (ps === "approved") return (
+                    <View style={styles.approvedInfo}>
+                      <Ionicons name="checkmark-circle" size={15} color="#4CAF50" />
+                      <Text style={styles.approvedInfoText}>Payment approved — tenant's QR code is now active.</Text>
+                    </View>
+                  );
+                  if (ps === "rejected") return (
+                    <View style={styles.rejectedInfo}>
+                      <Ionicons name="close-circle" size={15} color="#F44336" />
+                      <Text style={styles.rejectedInfoText}>Payment rejected — tenant has been notified.</Text>
+                    </View>
+                  );
+                  return null;
+                }
+
+                if (cs === "rejected") return (
+                  <View style={styles.rejectedInfo}>
+                    <Ionicons name="close-circle" size={15} color="#F44336" />
+                    <Text style={styles.rejectedInfoText}>Contract rejected — tenant has been notified.</Text>
+                  </View>
+                );
+
+                return null;
+              })()}
 
               {booking.status === "rejected" && (
                 <View style={styles.rejectedInfo}>
@@ -266,7 +455,7 @@ export default function OwnerBookingsPage() {
 
 const styles = StyleSheet.create({
   container:            { flex: 1, backgroundColor: "#f5f5f5" },
-  header:               { backgroundColor: "#fff", flexDirection: "row", alignItems: "center", padding: 16, paddingTop: 50, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" },
+  header:               { backgroundColor: "#fff", flexDirection: "row", alignItems: "center", padding: 16, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" },
   backButton:           { marginRight: 12, padding: 4 },
   headerTextContainer:  { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   headerTitle:          { fontSize: 22, fontWeight: "bold", color: "#333" },
@@ -309,4 +498,14 @@ const styles = StyleSheet.create({
   approvedInfoText:     { flex: 1, fontSize: 12, color: "#2E7D32" },
   rejectedInfo:         { flexDirection: "row", alignItems: "center", backgroundColor: "#FFEBEE", padding: 10, borderRadius: 8, gap: 8 },
   rejectedInfoText:     { flex: 1, fontSize: 12, color: "#C62828" },
+  contractBanner:       { flexDirection: "row", alignItems: "center", backgroundColor: "#EFF6FF", padding: 10, borderRadius: 8, gap: 8, marginBottom: 10, borderWidth: 1, borderColor: "#BFDBFE" },
+  contractBannerText:   { flex: 1, fontSize: 12, color: "#1D4ED8", fontWeight: "600" },
+  paymentBanner:        { flexDirection: "row", alignItems: "center", backgroundColor: "#EFF6FF", padding: 10, borderRadius: 8, gap: 8, marginBottom: 10, borderWidth: 1, borderColor: "#BFDBFE" },
+  paymentBannerText:    { flex: 1, fontSize: 12, color: "#1D4ED8", fontWeight: "600" },
+  photosRow:            { flexDirection: "row", gap: 12, marginBottom: 12 },
+  photoBlock:           { flex: 1, alignItems: "center" },
+  photoBlockLabel:      { fontSize: 11, fontWeight: "700", color: "#64748B", marginBottom: 6 },
+  contractPhoto:        { width: "100%", aspectRatio: 1, borderRadius: 10, backgroundColor: "#F1F5F9" },
+  contractPhotoEmpty:   { alignItems: "center", justifyContent: "center" },
+  contractActions:      { flexDirection: "row", gap: 10 },
 });

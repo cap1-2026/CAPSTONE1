@@ -126,7 +126,7 @@ export default function Financials() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f7fa" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", padding: 16, paddingTop: 50, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", padding: 16, borderBottomWidth: 1, borderBottomColor: "#e0e0e0" },
   headerTitle: { fontSize: 24, fontWeight: "bold", color: "#333" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 },
   loadingText: { marginTop: 12, color: "#666" },
@@ -149,4 +149,4 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   statusText: { fontSize: 10, fontWeight: "bold", color: "#fff" },
 });
-
+

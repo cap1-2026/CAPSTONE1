@@ -96,9 +96,6 @@ export default function EscrowPaymentPage() {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color="#1D4ED8" />
-          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Security Deposit</Text>
             <Text style={styles.headerSub}>Escrow Protected</Text>
@@ -724,6 +721,27 @@ export default function EscrowPaymentPage() {
             If you believe a deduction is unfair, you can file a dispute through PadFinder. We will mediate between you and the owner and make a fair decision.
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: "#059669" }]}
+          onPress={() =>
+            router.replace({
+              pathname: "/tenant/payment-qr" as any,
+              params: {
+                booking_id: bookingId,
+                transaction_id: transactionId,
+                property_name: propertyName,
+                property_address: propertyAddress,
+                amount: String(ownerDepositAmount),
+                monthly_rent: String(monthlyRent),
+                payment_method: selectedMethod ?? "cash",
+              },
+            })
+          }
+        >
+          <MaterialCommunityIcons name="qrcode" size={20} color="#fff" />
+          <Text style={styles.primaryBtnText}>Get My QR Code</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace("/tenant/home")}>
           <Ionicons name="home-outline" size={18} color="#fff" />

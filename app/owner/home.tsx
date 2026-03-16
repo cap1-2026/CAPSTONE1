@@ -1,7 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from "react-native";
+
+const { width: SCREEN_W } = Dimensions.get("window");
+const GRID_COL = (SCREEN_W - 32 - 10) / 2;
 
 export default function OwnerHome() {
   const router = useRouter();
@@ -171,7 +174,7 @@ const styles = StyleSheet.create({
   stepText: { fontSize: 13, color: "#64748B", lineHeight: 19 },
 
   typesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  typeCard: { width: "47%", backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  typeCard: { width: GRID_COL, backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 10, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   typeIcon: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   typeTitle: { fontSize: 14, fontWeight: "700", color: "#1E293B" },
 

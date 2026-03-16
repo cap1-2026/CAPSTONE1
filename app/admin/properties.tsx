@@ -1,4 +1,3 @@
-
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -45,6 +44,17 @@ export default function AdminProperties() {
 
   useEffect(() => { fetchProperties(); }, [fetchProperties]);
 
+  // ── FIX: Build the approve URL robustly regardless of what API_ENDPOINTS contains ──
+  function getApproveUrl(): string {
+    // Try the dedicated key first
+    if (API_ENDPOINTS.APPROVE_PROPERTY) return API_ENDPOINTS.APPROVE_PROPERTY;
+    // Fall back: derive from any known endpoint
+    const base = API_BASE_URL
+      || (API_ENDPOINTS.GET_PROPERTIES || "").replace(/\/get_properties\.php.*/, "")
+      || (API_ENDPOINTS.LOGIN || "").replace(/\/login\.php.*/, "");
+    return `${base}/approve_property.php`;
+  }
+
   async function handleAction(propertyId: number, action: "approved" | "rejected", name: string) {
     Alert.alert(
       action === "approved" ? "Approve Property" : "Reject Property",
@@ -57,21 +67,47 @@ export default function AdminProperties() {
           onPress: async () => {
             setActionLoading(propertyId);
             try {
-              const res = await fetch(API_ENDPOINTS.APPROVE_PROPERTY, {
+              const url = getApproveUrl();
+              console.log("[AdminProperties] approve url:", url, "action:", action);
+
+              const res = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ property_id: propertyId, action }),
               });
-              const data = await res.json();
+
+              // Guard against non-JSON responses (e.g. 404 HTML page)
+              const text = await res.text();
+              let data: any;
+              try {
+                data = JSON.parse(text);
+              } catch {
+                console.error("[AdminProperties] Non-JSON response:", text.slice(0, 200));
+                Alert.alert(
+                  "Server Error",
+                  `The server returned an unexpected response.\n\nCheck that approve_property.php exists at:\n${url}`
+                );
+                return;
+              }
+
               if (data.status === "success") {
+                // Update local state immediately — no re-fetch needed
                 setProperties(prev =>
                   prev.map(p => p.id === propertyId ? { ...p, status: action } : p)
+                );
+                Alert.alert(
+                  "Done",
+                  `Property "${name}" has been ${action}.`
                 );
               } else {
                 Alert.alert("Failed", data.message ?? "Please try again.");
               }
-            } catch {
-              Alert.alert("Error", "Could not process request.");
+            } catch (err: any) {
+              console.error("[AdminProperties] handleAction error:", err);
+              Alert.alert(
+                "Connection Error",
+                `Could not reach the server.\n\nMake sure XAMPP is running and the URL is correct.\n\nDetails: ${err?.message ?? err}`
+              );
             } finally {
               setActionLoading(null);
             }
@@ -181,20 +217,33 @@ export default function AdminProperties() {
                     {p.owner_name || "Unknown Owner"}{p.owner_email ? `  ·  ${p.owner_email}` : ""}
                   </Text>
                 </View>
+
+                {/* ── Approve / Reject buttons (only for pending) ── */}
                 {p.status === "pending" && (
                   <View style={styles.actionRow}>
-                    <TouchableOpacity style={styles.rejectBtn} onPress={() => handleAction(p.id, "rejected", p.name)} disabled={actionLoading === p.id}>
+                    <TouchableOpacity
+                      style={[styles.rejectBtn, actionLoading === p.id && { opacity: 0.5 }]}
+                      onPress={() => handleAction(p.id, "rejected", p.name)}
+                      disabled={actionLoading === p.id}
+                    >
                       {actionLoading === p.id
                         ? <ActivityIndicator size="small" color="#DC2626" />
-                        : <><Ionicons name="close-circle-outline" size={15} color="#DC2626" /><Text style={styles.rejectBtnText}>Reject</Text></>}
+                        : <><Ionicons name="close-circle-outline" size={15} color="#DC2626" /><Text style={styles.rejectBtnText}>Reject</Text></>
+                      }
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.approveBtn} onPress={() => handleAction(p.id, "approved", p.name)} disabled={actionLoading === p.id}>
+                    <TouchableOpacity
+                      style={[styles.approveBtn, actionLoading === p.id && { opacity: 0.5 }]}
+                      onPress={() => handleAction(p.id, "approved", p.name)}
+                      disabled={actionLoading === p.id}
+                    >
                       {actionLoading === p.id
                         ? <ActivityIndicator size="small" color="#fff" />
-                        : <><Ionicons name="checkmark-circle-outline" size={15} color="#fff" /><Text style={styles.approveBtnText}>Approve</Text></>}
+                        : <><Ionicons name="checkmark-circle-outline" size={15} color="#fff" /><Text style={styles.approveBtnText}>Approve</Text></>
+                      }
                     </TouchableOpacity>
                   </View>
                 )}
+
                 {p.status !== "pending" && (
                   <View style={[styles.decidedRow, { backgroundColor: getStatusBg(p.status) }]}>
                     <Ionicons name={p.status === "approved" ? "checkmark-circle" : "close-circle"} size={14} color={getStatusColor(p.status)} />

@@ -1,9 +1,12 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from "react-native";
 import API_ENDPOINTS from "../../config/api";
 import { UserStorage } from "../../utils/userStorage";
+
+const { width: SCREEN_W } = Dimensions.get("window");
+const GRID_COL = (SCREEN_W - 32 - 10) / 2;
 
 interface DashboardStats {
   total_properties: number;
@@ -205,7 +208,7 @@ const styles = StyleSheet.create({
   sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   seeAll: { fontSize: 13, color: "#2563EB", fontWeight: "600" },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  statCard: { width: "47%", borderRadius: 14, padding: 14, gap: 6 },
+  statCard: { width: GRID_COL, borderRadius: 14, padding: 14, gap: 6 },
   statIcon: { width: 38, height: 38, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   statValue: { fontSize: 20, fontWeight: "800" },
   statLabel: { fontSize: 12, color: "#64748B" },

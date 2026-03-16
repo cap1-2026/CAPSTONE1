@@ -11,7 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 include "db.php";
 
-
 // Handle multipart/form-data
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id']) && isset($_POST['property_id'])) {
     $tenant_id = $_POST['tenant_id'];
@@ -30,44 +29,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id']) && isset
         $move_in = "{$m[3]}-{$m[1]}-{$m[2]}";
     }
     $lease_duration = $_POST['lease_duration'] ?? '12 months';
-    $duration = $_POST['duration'] ?? 12;
-    $occupants = $_POST['occupants'] ?? 1;
+    $duration = intval($_POST['duration'] ?? 12);
+    $occupants = intval($_POST['occupants'] ?? 1);
     $special_request = $_POST['special_request'] ?? '';
 
     // Handle image upload
     $id_image_path = '';
     if (isset($_FILES['id_image']) && $_FILES['id_image']['error'] === UPLOAD_ERR_OK) {
         $uploadDir = __DIR__ . '/uploads/';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
         $ext = pathinfo($_FILES['id_image']['name'], PATHINFO_EXTENSION);
-        $fileName = 'id_' . time() . '_' . rand(1000,9999) . '.' . $ext;
-        $uploadFile = $uploadDir . $fileName;
-        if (move_uploaded_file($_FILES['id_image']['tmp_name'], $uploadFile)) {
+        $fileName = 'id_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
+        if (move_uploaded_file($_FILES['id_image']['tmp_name'], $uploadDir . $fileName)) {
             $id_image_path = 'uploads/' . $fileName;
         }
     }
 
-    // Insert booking with all information
-    $stmt = $conn->prepare("
-        INSERT INTO bookings (
-            tenant_id, property_id, full_name, email, phone, current_address,
-            id_type, id_number, id_image_path, emergency_contact_name, emergency_contact_phone,
-            move_in, lease_duration, duration, occupants, special_request, status
-        ) VALUES (
-            ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, 'pending'
-        )
-    ");
+    try {
+        $stmt = $conn->prepare("
+            INSERT INTO bookings (
+                tenant_id, property_id, full_name, email, phone, current_address,
+                id_type, id_number, id_image_path, emergency_contact_name, emergency_contact_phone,
+                move_in, lease_duration, duration, occupants, special_request, status
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, 'pending'
+            )
+        ");
 
-    $stmt->bind_param(
-        "iisssssssssssiis",
-        $tenant_id, $property_id, $full_name, $email, $phone, $current_address,
-        $id_type, $id_number, $id_image_path, $emergency_contact_name, $emergency_contact_phone,
-        $move_in, $lease_duration, $duration, $occupants, $special_request
-    );
+        $stmt->bind_param(
+            "iisssssssssssiis",
+            $tenant_id, $property_id, $full_name, $email, $phone, $current_address,
+            $id_type, $id_number, $id_image_path, $emergency_contact_name, $emergency_contact_phone,
+            $move_in, $lease_duration, $duration, $occupants, $special_request
+        );
 
-    if($stmt->execute()){
+        $stmt->execute();
         $booking_id = $stmt->insert_id;
+        $stmt->close();
+        $conn->close();
+
         echo json_encode([
             "status" => "success",
             "message" => "Booking created successfully! Your booking is now pending approval.",
@@ -81,62 +83,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tenant_id']) && isset
                 "id_image_path" => $id_image_path
             ]
         ]);
-    } else {
+    } catch (Exception $e) {
         echo json_encode([
             "status" => "error",
-            "message" => "Failed to create booking: " . $conn->error
+            "message" => "Failed to create booking: " . $e->getMessage()
         ]);
     }
-    $stmt->close();
-    $conn->close();
     exit();
 }
 
-echo json_encode(["status"=>"error", "message"=>"Invalid request or missing fields."]);
+echo json_encode(["status" => "error", "message" => "Invalid request or missing fields."]);
 exit();
-
-// Insert booking with all information
-$stmt = $conn->prepare("
-    INSERT INTO bookings (
-        tenant_id, property_id, full_name, email, phone, current_address,
-        id_type, id_number, id_image_path, emergency_contact_name, emergency_contact_phone,
-        move_in, lease_duration, duration, occupants, special_request, status
-    ) VALUES (
-        ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, 'pending'
-    )
-");
-
-$stmt->bind_param(
-    "iissssssssssiiis",
-    $tenant_id, $property_id, $full_name, $email, $phone, $current_address,
-    $id_type, $id_number, $id_image_path, $emergency_contact_name, $emergency_contact_phone,
-    $move_in, $lease_duration, $duration, $occupants, $special_request
-);
-
-if($stmt->execute()){
-    $booking_id = $stmt->insert_id;
-    
-    echo json_encode([
-        "status" => "success",
-        "message" => "Booking created successfully! Your booking is now pending approval.",
-        "booking_id" => $booking_id,
-        "data" => [
-            "booking_id" => $booking_id,
-            "tenant_name" => $full_name,
-            "property_id" => $property_id,
-            "move_in" => $move_in,
-            "lease_duration" => $lease_duration
-        ]
-    ]);
-} else {
-    echo json_encode([
-        "status" => "error",
-        "message" => "Failed to create booking: " . $conn->error
-    ]);
-}
-
-$stmt->close();
-$conn->close();
 ?>

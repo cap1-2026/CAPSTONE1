@@ -21,8 +21,9 @@ try {
     if ($booking_id) {
         // Get specific booking with property details
         $stmt = $conn->prepare("
-            SELECT b.*, p.name as property_name, p.address as property_address, 
-                   p.price as property_price, u.fullname as tenant_name
+            SELECT b.*, p.name as property_name, p.address as property_address,
+                   p.price as property_price, p.deposit as property_deposit,
+                   u.fullname as tenant_name
             FROM bookings b
             LEFT JOIN properties p ON b.property_id = p.id
             LEFT JOIN users u ON b.tenant_id = u.id
@@ -41,8 +42,8 @@ try {
     } else if ($tenant_id) {
         // Get bookings by tenant
         $query = "
-            SELECT b.*, p.name as property_name, p.address as property_address, 
-                   p.price as property_price
+            SELECT b.*, p.name as property_name, p.address as property_address,
+                   p.price as property_price, p.deposit as property_deposit
             FROM bookings b
             LEFT JOIN properties p ON b.property_id = p.id
             WHERE b.tenant_id = ?
@@ -69,8 +70,9 @@ try {
     } else if ($owner_id) {
         // Get bookings for owner's properties
         $query = "
-            SELECT b.*, p.name as property_name, p.address as property_address, 
-                   p.price as property_price, u.fullname as tenant_name, u.email as tenant_email
+            SELECT b.*, p.name as property_name, p.address as property_address,
+                   p.price as property_price, p.deposit as property_deposit,
+                   u.fullname as tenant_name, u.email as tenant_email
             FROM bookings b
             LEFT JOIN properties p ON b.property_id = p.id
             LEFT JOIN users u ON b.tenant_id = u.id

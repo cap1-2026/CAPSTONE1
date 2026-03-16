@@ -64,7 +64,7 @@ if($stmt->execute()){
 }else{
     echo json_encode([
         "status"=>"error",
-        "message"=>"Registration failed: " . $conn->error
+        "message"=>"Registration failed: {$conn->error}"
     ]);
 }
 

@@ -54,15 +54,6 @@ export default function PropertyDetails() {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Back Button */}
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => router.back()}
-      >
-        <Ionicons name="chevron-back" size={24} color="#007AFF" />
-        <Text style={styles.backText}>Back to Properties</Text>
-      </TouchableOpacity>
-
       {/* Image Gallery */}
       <View style={styles.imageGallery}>
         <View style={styles.mainImage}>

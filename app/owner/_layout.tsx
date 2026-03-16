@@ -1,14 +1,27 @@
 // app/owner/_layout.tsx
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Slot, useRouter, useSegments } from "expo-router";
-import React, { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { UserStorage } from "../../utils/userStorage";
 
 export default function OwnerLayout() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const segments = useSegments();
+  const insets = useSafeAreaInsets();
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    UserStorage.getUser().then((user) => {
+      if (!user || user.role !== "owner") {
+        router.replace("/" as any);
+        return;
+      }
+      setAuthChecked(true);
+    });
+  }, []);
 
   function go(path: string) {
     setOpen(false);
@@ -17,13 +30,21 @@ export default function OwnerLayout() {
 
   async function handleLogout() {
     setOpen(false);
-    await AsyncStorage.removeItem("@padfinder_user");
-    router.replace("/login/[role]" as any);
+    await UserStorage.clearUser();
+    router.replace("/" as any);
   }
 
   const lastSegment = segments[segments.length - 1];
   const showBack = !!lastSegment && lastSegment !== "home";
   const showMenu = lastSegment === "home";
+
+  if (!authChecked) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color="#1D4ED8" />
+      </View>
+    );
+  }
 
   const menuItems = [
     { icon: "view-dashboard-outline",  label: "Dashboard",            path: "/owner/dashboard",  color: "#2563EB" },
@@ -37,7 +58,7 @@ export default function OwnerLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           {showBack ? (
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -70,7 +91,7 @@ export default function OwnerLayout() {
       <Modal visible={open} animationType="fade" transparent>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.drawer}>
-            <View style={styles.drawerHeader}>
+            <View style={[styles.drawerHeader, { paddingTop: insets.top + 16 }]}>
               <View style={styles.drawerLogo}>
                 <Ionicons name="home" size={22} color="#fff" />
               </View>
@@ -112,7 +133,7 @@ export default function OwnerLayout() {
 }
 
 const styles = StyleSheet.create({
-  header:             { height: 58, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
+  header:             { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
   headerLeft:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backBtn:            { width: 34, height: 34, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   logoRow:            { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -124,7 +145,7 @@ const styles = StyleSheet.create({
   bar:                { width: 18, height: 2, backgroundColor: '#374151', borderRadius: 1 },
   overlay:            { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', flexDirection: 'row', justifyContent: 'flex-end' },
   drawer:             { width: '80%', height: '100%', backgroundColor: '#fff' },
-  drawerHeader:       { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, paddingTop: 56, backgroundColor: '#FAFBFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  drawerHeader:       { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 20, backgroundColor: '#FAFBFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   drawerLogo:         { width: 44, height: 44, borderRadius: 12, backgroundColor: '#1D4ED8', alignItems: 'center', justifyContent: 'center' },
   drawerTitle:        { fontSize: 16, fontWeight: '800', color: '#0F172A' },
   drawerRole:         { fontSize: 12, color: '#64748B', marginTop: 1 },

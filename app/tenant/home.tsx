@@ -1,7 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from "expo-router";
 import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from "react-native";
+
+const { width: SCREEN_W } = Dimensions.get("window");
+const GRID_COL = (SCREEN_W - 32 - 10) / 2;
 
 export default function TenantHome() {
   const router = useRouter();
@@ -41,13 +44,13 @@ export default function TenantHome() {
       {/* My Account Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>My Account</Text>
-        <Text style={styles.sectionSub}>Manage your rentals, payments & contracts</Text>
+        <Text style={styles.sectionSub}>Manage your rentals and track progress</Text>
         <View style={styles.dashGrid}>
           {[
-            { icon: "view-dashboard-outline", label: "Dashboard", sub: "Overview & stats", path: "/tenant/dashboard", color: "#EFF6FF", iconColor: "#2563EB" },
-            { icon: "home-city-outline", label: "My Properties", sub: "Active rentals", path: "/tenant/properties", color: "#F5F3FF", iconColor: "#7C3AED" },
-            { icon: "credit-card-outline", label: "Payments", sub: "Pay rent online", path: "/tenant/payment", color: "#FFF7ED", iconColor: "#EA580C" },
-            { icon: "file-document-outline", label: "Contracts", sub: "Lease agreements", path: "/tenant/contracts", color: "#F0FDF4", iconColor: "#059669" },
+            { icon: "view-dashboard-outline", label: "Dashboard",    sub: "Overview & stats",     path: "/tenant/dashboard", color: "#EFF6FF", iconColor: "#2563EB" },
+            { icon: "home-city-outline",       label: "My Properties",sub: "Active rentals",        path: "/tenant/properties", color: "#F5F3FF", iconColor: "#7C3AED" },
+            { icon: "map-marker-path",         label: "My Journey",   sub: "Booking → QR progress", path: "/tenant/approvals",  color: "#FFF7ED", iconColor: "#EA580C" },
+            { icon: "home-search-outline",     label: "Browse",       sub: "Find new properties",   path: "/tenant/browse-properties", color: "#F0FDF4", iconColor: "#059669" },
           ].map((item, i) => (
             <TouchableOpacity key={i} style={styles.dashCard} onPress={() => router.push(item.path as any)}>
               <View style={[styles.dashIcon, { backgroundColor: item.color }]}>
@@ -150,13 +153,13 @@ const styles = StyleSheet.create({
   sectionSub: { fontSize: 14, color: "#64748B", marginBottom: 14 },
 
   dashGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
-  dashCard: { width: "47%", backgroundColor: "#fff", borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  dashCard: { width: GRID_COL, backgroundColor: "#fff", borderRadius: 14, padding: 14, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   dashIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", marginBottom: 10 },
   dashLabel: { fontSize: 14, fontWeight: "700", color: "#1E293B", marginBottom: 3 },
   dashSub: { fontSize: 12, color: "#64748B" },
 
   typesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 },
-  typeCard: { width: "47%", backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 6, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
+  typeCard: { width: GRID_COL, backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 6, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   typeIcon: { width: 54, height: 54, borderRadius: 16, alignItems: "center", justifyContent: "center" },
   typeName: { fontSize: 14, fontWeight: "700", color: "#1E293B" },
   typeCount: { fontSize: 12, color: "#64748B" },

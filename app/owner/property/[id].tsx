@@ -22,7 +22,6 @@ export default function PropertyDetails() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.back}><Text>{'<'} Back</Text></TouchableOpacity>
       <Image source={{ uri: 'https://via.placeholder.com/300x150' }} style={styles.image} />
       <Text style={styles.title}>{prop.name}</Text>
       <Text style={styles.sub}>{prop.type} • {prop.address}</Text>
@@ -35,7 +34,6 @@ export default function PropertyDetails() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  back: { marginBottom: 8 },
   image: { width: '100%', height: 150, borderRadius: 8, backgroundColor: '#eee' },
   title: { fontSize: 20, fontWeight: '600', marginTop: 12 },
   sub: { color: '#666', marginTop: 6 },

@@ -14,7 +14,6 @@ export default function OwnerApply() {
   const [phone, setPhone] = useState("");
   const [idFile, setIdFile] = useState<any>(null);
   const [ownershipFile, setOwnershipFile] = useState<any>(null);
-  const [hasDocumentPicker, setHasDocumentPicker] = useState<boolean>(false);
   const [agree, setAgree] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,15 +45,6 @@ export default function OwnerApply() {
   const [hasFurnished, setHasFurnished] = useState(false);
   const [hasSecurity, setHasSecurity] = useState(false);
   const [hasElevator, setHasElevator] = useState(false);
-
-  useEffect(() => {
-    try {
-      const dp = require("expo-document-picker");
-      if (dp) setHasDocumentPicker(true);
-    } catch (e) {
-      setHasDocumentPicker(false);
-    }
-  }, []);
 
   // Load existing property data when editing
   useEffect(() => {
@@ -97,7 +87,7 @@ export default function OwnerApply() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images" as any,
       allowsEditing: true,
       quality: 0.8,
     });
@@ -113,7 +103,7 @@ export default function OwnerApply() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images" as any,
       allowsMultipleSelection: true,
       quality: 0.8,
     });

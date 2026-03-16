@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -79,6 +80,13 @@ export default function Properties() {
     }
   }
 
+  const statusColor = (s: string) =>
+    s === "approved" ? "#059669" : s === "pending" ? "#D97706" : "#DC2626";
+  const statusBg = (s: string) =>
+    s === "approved" ? "#D1FAE5" : s === "pending" ? "#FEF3C7" : "#FEE2E2";
+  const statusIcon = (s: string): any =>
+    s === "approved" ? "checkmark-circle" : s === "pending" ? "time" : "close-circle";
+
   useFocusEffect(
     useCallback(() => {
       fetchProperties();
@@ -142,9 +150,6 @@ export default function Properties() {
       </Modal>
 
       <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.push('/owner/home')}>
-          <Text style={styles.backBtnText}>← Back</Text>
-        </TouchableOpacity>
         <Text style={styles.header}>My Listed Properties</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/owner/submit-property')}>
           <Text style={{ color: '#fff' }}>+ Add</Text>
@@ -179,10 +184,22 @@ export default function Properties() {
                 </View>
               )}
               <View style={styles.info}>
+                <View style={[styles.statusBadge, { backgroundColor: statusBg(item.status) }]}>
+                  <Ionicons name={statusIcon(item.status)} size={12} color={statusColor(item.status)} />
+                  <Text style={[styles.statusText, { color: statusColor(item.status) }]}>
+                    {item.status === "approved" ? "Live" : item.status === "pending" ? "Pending Review" : "Rejected"}
+                  </Text>
+                </View>
                 <Text style={styles.title}>{item.name}</Text>
                 <Text style={styles.sub}>{item.address}</Text>
                 <Text style={styles.price}>₱{parseFloat(item.price).toLocaleString()} / month</Text>
                 {item.amenities ? <Text style={styles.amenities}>{item.amenities}</Text> : null}
+                {item.status === "pending" && (
+                  <Text style={styles.pendingNote}>⏳ Awaiting admin approval — not visible to tenants yet.</Text>
+                )}
+                {item.status === "rejected" && (
+                  <Text style={styles.rejectedNote}>❌ Rejected by admin — contact support if you believe this is an error.</Text>
+                )}
               </View>
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.btn} onPress={() => router.push({ pathname: '/owner/submit-property', params: { id: item.id } })}>
@@ -210,8 +227,6 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 10, color: "#666" },
   header: { fontSize: 20, fontWeight: "700", color: "#333" },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  backBtn: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#f0f0f0', borderRadius: 8 },
-  backBtnText: { fontSize: 14, fontWeight: '600', color: '#333' },
   addBtn: { backgroundColor: '#007AFF', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8 },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", marginTop: 60 },
   emptyText: { fontSize: 18, fontWeight: "600", color: "#333", marginBottom: 8 },
@@ -224,6 +239,10 @@ const styles = StyleSheet.create({
   sub: { color: "#666", fontSize: 12, marginTop: 4 },
   price: { marginTop: 6, fontWeight: "600", color: "#007AFF" },
   amenities: { marginTop: 4, fontSize: 11, color: "#888" },
+  statusBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 4 },
+  statusText: { fontSize: 11, fontWeight: "700" },
+  pendingNote: { fontSize: 11, color: "#D97706", marginTop: 4, lineHeight: 16 },
+  rejectedNote: { fontSize: 11, color: "#DC2626", marginTop: 4, lineHeight: 16 },
   actions: { justifyContent: "center", gap: 8 },
   btn: { backgroundColor: "#f0f0f0", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },
   btnText: { fontSize: 13, color: "#333", fontWeight: "500" },

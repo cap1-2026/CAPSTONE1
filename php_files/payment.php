@@ -30,6 +30,12 @@ $stmt = $conn->prepare("INSERT INTO payments (booking_id, amount, method, transa
 $stmt->bind_param("idss", $booking_id, $amount, $method, $transaction);
 
 if($stmt->execute()){
+    // Mark booking as awaiting owner payment approval
+    $stmt2 = $conn->prepare("UPDATE bookings SET payment_status = 'pending_owner_approval' WHERE id = ?");
+    $stmt2->bind_param("i", $booking_id);
+    $stmt2->execute();
+    $stmt2->close();
+
     echo json_encode([
         "status"=>"success",
         "message"=>"Payment processed successfully",

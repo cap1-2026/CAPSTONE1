@@ -1,22 +1,32 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert, KeyboardAvoidingView, Platform, ScrollView,
+  StyleSheet, Text, TextInput, TouchableOpacity, View
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import API_ENDPOINTS from "../../config/api";
 import { UserStorage } from "../../utils/userStorage";
+
+// ── Admin credentials (hardcoded) ─────────────────────────────────────────────
+const ADMIN_EMAIL    = "admin@padfinder.com";
+const ADMIN_PASSWORD = "Admin@2026";
 
 export default function RoleLogin() {
   const { role } = useLocalSearchParams() as { role?: string };
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
-  const isOwner = role === "owner";
-  const displayRole = isOwner ? "Property Owner" : "Tenant";
-  const accentColor = isOwner ? "#7C3AED" : "#2563EB";
-  const accentLight = isOwner ? "#F5F3FF" : "#EFF6FF";
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading,      setLoading]      = useState(false);
+
+  const isOwner      = role === "owner";
+  const displayRole  = isOwner ? "Property Owner" : "Tenant";
+  const accentColor  = isOwner ? "#7C3AED" : "#2563EB";
+  const accentLight  = isOwner ? "#F5F3FF" : "#EFF6FF";
   const accentBorder = isOwner ? "#E9D5FF" : "#BFDBFE";
 
   async function handleLogin() {
@@ -25,22 +35,53 @@ export default function RoleLogin() {
       return;
     }
     setLoading(true);
+
+    // ── Check admin credentials first (works from either tenant or owner button) ──
+    if (
+      email.trim().toLowerCase() === ADMIN_EMAIL &&
+      password === ADMIN_PASSWORD
+    ) {
+      // Store a minimal admin session so admin screens know who's logged in
+      await UserStorage.saveUser({ user_id: 0, email: ADMIN_EMAIL, fullname: "Admin", role: "admin" });
+      setLoading(false);
+      router.replace("/admin/dashboard" as any);
+      return;
+    }
+
+    // ── Normal tenant / owner login via API ───────────────────────────────────
     try {
       const response = await fetch(API_ENDPOINTS.LOGIN, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body:    JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       const data = await response.json();
 
       if (data.status === "success") {
-        if (data.role !== role) {
-          Alert.alert("Wrong Account", `This account is registered as a ${data.role}. Please use the correct login.`);
+        // If the user is actually an admin registered in the DB, redirect them too
+        if (data.role === "admin") {
+          await UserStorage.saveUser({ user_id: data.user_id, email: data.email, fullname: data.fullname, role: "admin" });
+          router.replace("/admin/dashboard" as any);
           return;
         }
-        await UserStorage.saveUser({ user_id: data.user_id, email: data.email, fullname: data.fullname, role: data.role });
+
+        // Warn if they picked the wrong role button (but still let them in)
+        if (data.role !== role) {
+          Alert.alert(
+            "Wrong Account Type",
+            `This account is registered as a ${data.role}. Redirecting you to the correct dashboard.`
+          );
+        }
+
+        await UserStorage.saveUser({
+          user_id:  data.user_id,
+          email:    data.email,
+          fullname: data.fullname,
+          role:     data.role,
+        });
+
         if (data.role === "owner") router.replace("/owner/home");
-        else router.replace("/tenant/home");
+        else                       router.replace("/tenant/home");
       } else {
         Alert.alert("Login Failed", data.message || "Invalid credentials. Please try again.");
       }
@@ -52,11 +93,14 @@ export default function RoleLogin() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.wrapper} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+    <KeyboardAvoidingView
+      style={styles.wrapper}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
-        {/* Top Bar */}
-        <View style={styles.topBar}>
+        {/* Back */}
+        <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color="#374151" />
           </TouchableOpacity>
@@ -123,7 +167,7 @@ export default function RoleLogin() {
             activeOpacity={0.85}
           >
             {loading
-              ? <Text style={styles.loginBtnText}>Signing in...</Text>
+              ? <Text style={styles.loginBtnText}>Signing in…</Text>
               : <>
                   <Text style={styles.loginBtnText}>Sign In</Text>
                   <Ionicons name="arrow-forward" size={18} color="#fff" />
@@ -172,35 +216,35 @@ export default function RoleLogin() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: "#F8FAFC" },
-  container: { paddingBottom: 40 },
-  topBar: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 8 },
-  backBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
-  headerSection: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
-  roleChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
-  roleChipText: { fontSize: 13, fontWeight: "600" },
-  welcomeTitle: { fontSize: 30, fontWeight: "800", color: "#0F172A", letterSpacing: -0.5, marginBottom: 6 },
-  welcomeSub: { fontSize: 15, color: "#64748B" },
-  formCard: { backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 20, padding: 24, shadowColor: "#1E3A8A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6, marginBottom: 24 },
-  fieldGroup: { marginBottom: 18 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
-  labelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  forgotText: { fontSize: 13, fontWeight: "500" },
-  inputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 14 },
-  inputIcon: { marginRight: 10 },
-  input: { flex: 1, paddingVertical: 13, fontSize: 15, color: "#1E293B" },
-  eyeBtn: { padding: 4 },
-  loginBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 12, marginTop: 4, marginBottom: 20 },
+  wrapper:        { flex: 1, backgroundColor: "#F8FAFC" },
+  container:      { paddingBottom: 40 },
+  topBar:         { paddingHorizontal: 20, paddingBottom: 8 },
+  backBtn:        { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  headerSection:  { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
+  roleChip:       { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
+  roleChipText:   { fontSize: 13, fontWeight: "600" },
+  welcomeTitle:   { fontSize: 30, fontWeight: "800", color: "#0F172A", letterSpacing: -0.5, marginBottom: 6 },
+  welcomeSub:     { fontSize: 15, color: "#64748B" },
+  formCard:       { backgroundColor: "#fff", marginHorizontal: 16, borderRadius: 20, padding: 24, shadowColor: "#1E3A8A", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 6, marginBottom: 24 },
+  fieldGroup:     { marginBottom: 18 },
+  fieldLabel:     { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  labelRow:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  forgotText:     { fontSize: 13, fontWeight: "500" },
+  inputWrap:      { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 12, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 14 },
+  inputIcon:      { marginRight: 10 },
+  input:          { flex: 1, paddingVertical: 13, fontSize: 15, color: "#1E293B" },
+  eyeBtn:         { padding: 4 },
+  loginBtn:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 12, marginTop: 4, marginBottom: 20 },
   loginBtnDisabled: { opacity: 0.6 },
-  loginBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
-  dividerText: { fontSize: 13, color: "#94A3B8" },
-  registerBtn: { paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1.5 },
-  registerBtnText: { fontSize: 15, fontWeight: "700" },
-  trustRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24, marginBottom: 16 },
-  trustItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  trustText: { fontSize: 12, color: "#64748B", fontWeight: "500" },
-  trustDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: "#CBD5E1" },
-  footerText: { textAlign: "center", fontSize: 12, color: "#94A3B8" },
+  loginBtnText:   { color: "#fff", fontSize: 16, fontWeight: "700" },
+  dividerRow:     { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
+  dividerLine:    { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
+  dividerText:    { fontSize: 13, color: "#94A3B8" },
+  registerBtn:    { paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1.5 },
+  registerBtnText:{ fontSize: 15, fontWeight: "700" },
+  trustRow:       { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 24, marginBottom: 16 },
+  trustItem:      { flexDirection: "row", alignItems: "center", gap: 4 },
+  trustText:      { fontSize: 12, color: "#64748B", fontWeight: "500" },
+  trustDot:       { width: 3, height: 3, borderRadius: 2, backgroundColor: "#CBD5E1" },
+  footerText:     { textAlign: "center", fontSize: 12, color: "#94A3B8" },
 });

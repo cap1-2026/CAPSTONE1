@@ -76,9 +76,6 @@ export default function TenantPropertiesPage() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#007AFF" />
-        </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>My Properties</Text>
           <Text style={styles.headerSub}>{filtered.length} booking{filtered.length !== 1 ? "s" : ""}</Text>

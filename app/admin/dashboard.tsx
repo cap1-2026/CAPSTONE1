@@ -1,10 +1,13 @@
 // app/admin/dashboard.tsx
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View, Dimensions } from "react-native";
 import API_ENDPOINTS from "../../config/api";
+import { UserStorage } from "../../utils/userStorage";
+
+const { width: SCREEN_W } = Dimensions.get("window");
+const GRID_COL = (SCREEN_W - 32 - 10) / 2;
 
 interface Stats {
   total_properties: number;
@@ -45,8 +48,8 @@ export default function AdminDashboard() {
   function onRefresh() { setRefreshing(true); fetchStats(); }
 
   async function handleLogout() {
-    await AsyncStorage.removeItem("@padfinder_user");
-    router.replace("/admin/login" as any);
+    await UserStorage.clearUser();
+    router.replace("/" as any);
   }
 
   const statCards = stats ? [
@@ -175,7 +178,7 @@ const styles = StyleSheet.create({
   section:         { padding: 16, paddingBottom: 4 },
   sectionTitle:    { fontSize: 16, fontWeight: "700", color: "#0F172A", marginBottom: 12 },
   statsGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  statCard:        { width: "47%", borderRadius: 14, padding: 14, gap: 6 },
+  statCard:        { width: GRID_COL, borderRadius: 14, padding: 14, gap: 6 },
   statIcon:        { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   statValue:       { fontSize: 22, fontWeight: "800" },
   statLabel:       { fontSize: 12, color: "#64748B", fontWeight: "500" },
@@ -184,7 +187,7 @@ const styles = StyleSheet.create({
   alertTitle:      { fontSize: 14, fontWeight: "700", color: "#92400E" },
   alertSub:        { fontSize: 12, color: "#B45309", marginTop: 2 },
   actionsGrid:     { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  actionCard:      { width: "47%", borderRadius: 14, padding: 14, gap: 6 },
+  actionCard:      { width: GRID_COL, borderRadius: 14, padding: 14, gap: 6 },
   actionIcon:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   actionLabel:     { fontSize: 14, fontWeight: "700", marginTop: 4 },
   actionDesc:      { fontSize: 12, color: "#64748B" },

@@ -5,6 +5,7 @@ import {
   Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Admin credentials (hardcoded — replace with API in production)
 const ADMIN_EMAIL = "admin@padfinder.com";
@@ -12,6 +13,7 @@ const ADMIN_PASSWORD = "Admin@2026";
 
 export default function AdminLogin() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -38,7 +40,7 @@ export default function AdminLogin() {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* Back */}
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color="#374151" />
           </TouchableOpacity>
@@ -124,7 +126,7 @@ export default function AdminLogin() {
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: "#F1F5F9" },
   container: { paddingBottom: 40 },
-  topBar: { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 8 },
+  topBar: { paddingHorizontal: 20, paddingBottom: 8 },
   backBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
 
   header: { alignItems: "center", paddingHorizontal: 24, paddingTop: 12, paddingBottom: 24 },

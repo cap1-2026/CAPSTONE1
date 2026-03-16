@@ -27,6 +27,8 @@ const API_ENDPOINTS = {
   BOOK_ROOM:       `${API_BASE_URL}/book_room.php`,
   APPROVE_BOOKING: `${API_BASE_URL}/approve_booking.php`,
   DELETE_BOOKING:  `${API_BASE_URL}/delete_booking.php`,
+  SUBMIT_CONTRACT: `${API_BASE_URL}/submit_contract.php`,
+  APPROVE_CONTRACT:`${API_BASE_URL}/approve_contract.php`,
 
   // ── Payments ──────────────────────────────────────────
   PAYMENT:         `${API_BASE_URL}/payment.php`,
@@ -39,6 +41,7 @@ const API_ENDPOINTS = {
 
   // ── Misc ──────────────────────────────────────────────
   VERIFY_QR:       `${API_BASE_URL}/verify_qr.php`,
+  APPROVE_PAYMENT: `${API_BASE_URL}/approve_payment.php`,
 };
 
 export default API_ENDPOINTS;

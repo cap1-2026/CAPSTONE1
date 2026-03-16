@@ -33,7 +33,6 @@ export default function BrowseProperties() {
   const propertyTypeOptions = ["All", "Apartment", "Condominium", "Dormitory", "Transient"];
   const priceRangeOptions = ["All", "Under ₱10,000", "₱10,000 - ₱20,000", "₱20,000 - ₱30,000", "Above ₱30,000"];
   const bedroomOptions = ["All", "Studio", "1", "2", "3", "4+"];
-  const bathroomOptions = ["All", "1", "2", "3+"];
 
   useFocusEffect(
     useCallback(() => {

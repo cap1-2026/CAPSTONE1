@@ -1,24 +1,45 @@
 // app/tenant/_layout.tsx
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Slot, useRouter, useSegments } from "expo-router";
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { UserStorage } from "../../utils/userStorage";
 
 export default function TenantLayout() {
   const router = useRouter();
   const segments = useSegments();
+  const insets = useSafeAreaInsets();
   const lastSegment = segments[segments.length - 1];
   const isHome = lastSegment === "home";
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    UserStorage.getUser().then((user) => {
+      if (!user || user.role !== "tenant") {
+        router.replace("/" as any);
+        return;
+      }
+      setAuthChecked(true);
+    });
+  }, []);
 
   async function handleLogout() {
-    await AsyncStorage.removeItem("@padfinder_user");
-    router.replace("/login/[role]" as any);
+    await UserStorage.clearUser();
+    router.replace("/" as any);
+  }
+
+  if (!authChecked) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F8FAFC" }}>
+        <ActivityIndicator size="large" color="#1D4ED8" />
+      </View>
+    );
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           {!isHome ? (
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -54,7 +75,7 @@ export default function TenantLayout() {
 }
 
 const styles = StyleSheet.create({
-  header:      { height: 58, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
+  header:      { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
   headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backBtn:     { width: 34, height: 34, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   logoRow:     { flexDirection: 'row', alignItems: 'center', gap: 7 },

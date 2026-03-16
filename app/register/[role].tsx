@@ -8,11 +8,13 @@ import {
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import API_ENDPOINTS from "../../config/api";
 
 export default function RegisterScreen() {
   const { role } = useLocalSearchParams() as { role?: string };
   const router   = useRouter();
+  const insets   = useSafeAreaInsets();
 
   const isOwner      = role === "owner";
   const displayRole  = isOwner ? "Property Owner" : "Tenant";
@@ -86,7 +88,7 @@ export default function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* Back */}
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={20} color="#374151" />
           </TouchableOpacity>
@@ -214,7 +216,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   wrapper:        { flex: 1, backgroundColor: "#F8FAFC" },
   container:      { paddingBottom: 40 },
-  topBar:         { paddingTop: 56, paddingHorizontal: 20, paddingBottom: 8 },
+  topBar:         { paddingHorizontal: 20, paddingBottom: 8 },
   backBtn:        { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   headerSection:  { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
   roleChip:       { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
