@@ -45,7 +45,7 @@ export default function PaymentQRPage() {
   const refCode       = `PF-${bookingId.padStart(6, "0")}`;
 
   useEffect(() => {
-    UserStorage.getUser().then((u) => { if (u) setTenantName(u.fullname); });
+    UserStorage.getUser("tenant").then((u) => { if (u) setTenantName(u.fullname); });
   }, []);
 
   // Build QR data string

@@ -6,6 +6,7 @@ import {
   StyleSheet, Text, TextInput, TouchableOpacity, View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { UserStorage } from "../../utils/userStorage";
 
 // Admin credentials (hardcoded — replace with API in production)
 const ADMIN_EMAIL = "admin@padfinder.com";
@@ -19,15 +20,16 @@ export default function AdminLogin() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  function handleLogin() {
+  async function handleLogin() {
     if (!email || !password) {
       Alert.alert("Missing Fields", "Please enter your admin credentials.");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       setLoading(false);
       if (email.trim().toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+        await UserStorage.saveUser({ user_id: 0, email: ADMIN_EMAIL, fullname: "Admin", role: "admin" });
         router.replace("/admin/dashboard" as any);
       } else {
         Alert.alert("Access Denied", "Invalid admin credentials. Please try again.");
@@ -76,7 +78,7 @@ export default function AdminLogin() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
-                placeholderTextColor="#C4C9D4"
+                placeholderTextColor="#9CA3AF"
               />
             </View>
           </View>
@@ -91,7 +93,7 @@ export default function AdminLogin() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPw}
-                placeholderTextColor="#C4C9D4"
+                placeholderTextColor="#9CA3AF"
               />
               <TouchableOpacity onPress={() => setShowPw(!showPw)} style={styles.eyeBtn}>
                 <Ionicons name={showPw ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />

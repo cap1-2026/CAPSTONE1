@@ -99,7 +99,7 @@ export default function TenantFlowPage() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("tenant").then((user) => {
       if (user) {
         setUserId(user.user_id);
         setTenantName(user.fullname ?? "Tenant");

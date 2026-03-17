@@ -112,7 +112,7 @@ export default function RegisterScreen() {
             <Text style={styles.fieldLabel}>Full Name *</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="person-outline" size={18} color="#9CA3AF" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="Juan Dela Cruz" value={fullname} onChangeText={setFullname} placeholderTextColor="#C4C9D4" />
+              <TextInput style={styles.input} placeholder="Juan Dela Cruz" value={fullname} onChangeText={setFullname} placeholderTextColor="#9CA3AF" />
             </View>
           </View>
 
@@ -121,7 +121,7 @@ export default function RegisterScreen() {
             <Text style={styles.fieldLabel}>Home Address *</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="location-outline" size={18} color="#9CA3AF" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="123 Main St, Barangay, City" value={address} onChangeText={setAddress} placeholderTextColor="#C4C9D4" />
+              <TextInput style={styles.input} placeholder="123 Main St, Barangay, City" value={address} onChangeText={setAddress} placeholderTextColor="#9CA3AF" />
             </View>
           </View>
 
@@ -130,7 +130,7 @@ export default function RegisterScreen() {
             <Text style={styles.fieldLabel}>Contact Number *</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="call-outline" size={18} color="#9CA3AF" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="09XX XXX XXXX" value={contact} onChangeText={setContact} keyboardType="phone-pad" placeholderTextColor="#C4C9D4" />
+              <TextInput style={styles.input} placeholder="09XX XXX XXXX" value={contact} onChangeText={setContact} keyboardType="phone-pad" placeholderTextColor="#9CA3AF" />
             </View>
           </View>
 
@@ -139,7 +139,7 @@ export default function RegisterScreen() {
             <Text style={styles.fieldLabel}>Email Address *</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.icon} />
-              <TextInput style={styles.input} placeholder="you@example.com" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholderTextColor="#C4C9D4" />
+              <TextInput style={styles.input} placeholder="you@example.com" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholderTextColor="#9CA3AF" />
             </View>
           </View>
 
@@ -148,7 +148,7 @@ export default function RegisterScreen() {
             <Text style={styles.fieldLabel}>Password *</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.icon} />
-              <TextInput style={[styles.input, { paddingRight: 44 }]} placeholder="Min 8 chars, upper, lower, number" value={password} onChangeText={setPassword} secureTextEntry={!showPw} placeholderTextColor="#C4C9D4" />
+              <TextInput style={[styles.input, { paddingRight: 44 }]} placeholder="Min 8 chars, upper, lower, number" value={password} onChangeText={setPassword} secureTextEntry={!showPw} placeholderTextColor="#9CA3AF" />
               <TouchableOpacity onPress={() => setShowPw(!showPw)} style={styles.eyeBtn}>
                 <Ionicons name={showPw ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />
               </TouchableOpacity>
@@ -160,7 +160,7 @@ export default function RegisterScreen() {
             <Text style={styles.fieldLabel}>Confirm Password *</Text>
             <View style={styles.inputWrap}>
               <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.icon} />
-              <TextInput style={[styles.input, { paddingRight: 44 }]} placeholder="Re-enter password" value={confirmPw} onChangeText={setConfirmPw} secureTextEntry={!showCpw} placeholderTextColor="#C4C9D4" />
+              <TextInput style={[styles.input, { paddingRight: 44 }]} placeholder="Re-enter password" value={confirmPw} onChangeText={setConfirmPw} secureTextEntry={!showCpw} placeholderTextColor="#9CA3AF" />
               <TouchableOpacity onPress={() => setShowCpw(!showCpw)} style={styles.eyeBtn}>
                 <Ionicons name={showCpw ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />
               </TouchableOpacity>

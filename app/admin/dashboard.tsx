@@ -84,9 +84,6 @@ export default function AdminDashboard() {
         <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
           <Ionicons name="refresh-outline" size={22} color="#1D4ED8" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-          <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -145,19 +142,6 @@ export default function AdminDashboard() {
               ))}
             </View>
           </View>
-
-          <View style={styles.section}>
-            <TouchableOpacity style={styles.logoutCard} onPress={handleLogout}>
-              <View style={styles.logoutCardIcon}>
-                <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.logoutCardTitle}>Logout</Text>
-                <Text style={styles.logoutCardSub}>Sign out of admin panel</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#DC2626" />
-            </TouchableOpacity>
-          </View>
         </>
       )}
     </ScrollView>
@@ -170,7 +154,6 @@ const styles = StyleSheet.create({
   headerTitle:     { fontSize: 22, fontWeight: "800", color: "#0F172A" },
   headerSub:       { fontSize: 13, color: "#64748B", marginTop: 2 },
   refreshBtn:      { width: 40, height: 40, borderRadius: 10, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
-  logoutBtn:       { width: 40, height: 40, borderRadius: 10, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" },
   errorCard:       { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#FEF2F2", marginHorizontal: 16, marginTop: 14, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#FECACA" },
   errorText:       { fontSize: 13, color: "#DC2626", fontWeight: "500", flex: 1 },
   loadingBox:      { alignItems: "center", justifyContent: "center", paddingVertical: 80 },
@@ -191,8 +174,4 @@ const styles = StyleSheet.create({
   actionIcon:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   actionLabel:     { fontSize: 14, fontWeight: "700", marginTop: 4 },
   actionDesc:      { fontSize: 12, color: "#64748B" },
-  logoutCard:      { flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: "#FEF2F2", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#FECACA", marginBottom: 16 },
-  logoutCardIcon:  { width: 44, height: 44, borderRadius: 12, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" },
-  logoutCardTitle: { fontSize: 15, fontWeight: "700", color: "#DC2626" },
-  logoutCardSub:   { fontSize: 12, color: "#EF4444", marginTop: 2 },
 });

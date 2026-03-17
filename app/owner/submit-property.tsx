@@ -46,6 +46,16 @@ export default function OwnerApply() {
   const [hasSecurity, setHasSecurity] = useState(false);
   const [hasElevator, setHasElevator] = useState(false);
 
+  // Pre-fill owner info from logged-in account
+  useEffect(() => {
+    UserStorage.getUser("owner").then((u) => {
+      if (u) {
+        setName(u.fullname);
+        setEmail(u.email);
+      }
+    });
+  }, []);
+
   // Load existing property data when editing
   useEffect(() => {
     let id = params.id ? Number(params.id) : null;
@@ -135,7 +145,7 @@ export default function OwnerApply() {
   async function submit() {
     if (!validate()) return;
 
-    const user = await UserStorage.getUser();
+    const user = await UserStorage.getUser("owner");
     const ownerId = user?.user_id ?? 1;
 
     setIsSubmitting(true);
@@ -241,13 +251,13 @@ export default function OwnerApply() {
       <Text style={styles.sectionTitle}>Owner Information</Text>
 
       <Text style={styles.label}>Full Name *</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Juan Dela Cruz" />
+      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Juan Dela Cruz" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>Email Address *</Text>
-      <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="juan@example.com" />
+      <TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" placeholder="juan@example.com" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>Phone Number *</Text>
-      <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+63 912 345 6789" />
+      <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="+63 912 345 6789" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>Government-Issued ID *</Text>
       <TouchableOpacity
@@ -294,7 +304,7 @@ export default function OwnerApply() {
       <Text style={styles.sectionTitle}>Property Details</Text>
 
       <Text style={styles.label}>Property Title *</Text>
-      <TextInput style={styles.input} value={propertyTitle} onChangeText={setPropertyTitle} placeholder="Modern 2BR Apartment" />
+      <TextInput style={styles.input} value={propertyTitle} onChangeText={setPropertyTitle} placeholder="Modern 2BR Apartment" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>Property Type *</Text>
       <TouchableOpacity 
@@ -328,8 +338,9 @@ export default function OwnerApply() {
         style={styles.input} 
         value={monthlyRent} 
         onChangeText={(text) => setMonthlyRent(text.replace(/[^0-9]/g, ''))} 
-        keyboardType="numeric" 
-        placeholder="15000" 
+        keyboardType="numeric"
+        placeholder="15000"
+        placeholderTextColor="#9CA3AF"
       />
 
       <Text style={styles.label}>Security Deposit (₱) *</Text>
@@ -339,21 +350,22 @@ export default function OwnerApply() {
         onChangeText={(text) => setSecurityDeposit(text.replace(/[^0-9]/g, ""))}
         keyboardType="numeric"
         placeholder="e.g. 5000 — how much tenant pays upfront"
+        placeholderTextColor="#9CA3AF"
       />
 
       <Text style={styles.sectionTitle}>Location</Text>
 
       <Text style={styles.label}>Street Address *</Text>
-      <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main Street, Barangay Example" />
+      <TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="123 Main Street, Barangay Example" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>City *</Text>
-      <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="Manila" />
+      <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="Manila" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>Province/State *</Text>
-      <TextInput style={styles.input} value={province} onChangeText={setProvince} placeholder="Metro Manila" />
+      <TextInput style={styles.input} value={province} onChangeText={setProvince} placeholder="Metro Manila" placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.label}>Nearby Landmark</Text>
-      <TextInput style={styles.input} value={landmark} onChangeText={setLandmark} placeholder="Near SM Mall, LRT Station, etc." />
+      <TextInput style={styles.input} value={landmark} onChangeText={setLandmark} placeholder="Near SM Mall, LRT Station, etc." placeholderTextColor="#9CA3AF" />
 
       <Text style={styles.sectionTitle}>Property Specifications</Text>
 
@@ -416,8 +428,9 @@ export default function OwnerApply() {
         style={styles.input} 
         value={floorArea} 
         onChangeText={(text) => setFloorArea(text.replace(/[^0-9]/g, ''))} 
-        keyboardType="numeric" 
-        placeholder="45" 
+        keyboardType="numeric"
+        placeholder="45"
+        placeholderTextColor="#9CA3AF"
       />
 
       <Text style={styles.label}>Property Description *</Text>
@@ -426,6 +439,7 @@ export default function OwnerApply() {
         value={description} 
         onChangeText={setDescription} 
         placeholder="Describe your property, its features, and what makes it special..."
+        placeholderTextColor="#9CA3AF"
         multiline
         numberOfLines={4}
       />

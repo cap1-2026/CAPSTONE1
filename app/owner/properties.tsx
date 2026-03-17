@@ -19,7 +19,7 @@ export default function Properties() {
     setLoading(true);
     setLoadError(null);
     try {
-      const user = await UserStorage.getUser();
+      const user = await UserStorage.getUser("owner");
       const ownerId = user?.user_id ?? 1;
       const response = await fetch(`${API_ENDPOINTS.GET_PROPERTIES}?owner_id=${ownerId}`);
       const data = await response.json();

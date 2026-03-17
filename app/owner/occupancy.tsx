@@ -36,7 +36,7 @@ export default function Occupancy() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("owner").then((user) => {
       if (user) fetchBookings(user.user_id);
       else setLoading(false);
     });
@@ -44,7 +44,7 @@ export default function Occupancy() {
 
   function onRefresh() {
     setRefreshing(true);
-    UserStorage.getUser().then((user) => { if (user) fetchBookings(user.user_id); });
+    UserStorage.getUser("owner").then((user) => { if (user) fetchBookings(user.user_id); });
   }
 
   const approved = bookings.filter((b) => b.status === "approved");

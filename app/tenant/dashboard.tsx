@@ -5,7 +5,6 @@ import {
   ActivityIndicator, RefreshControl, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import API_ENDPOINTS from "../../config/api";
 import { UserStorage } from "../../utils/userStorage";
 
@@ -160,7 +159,7 @@ export default function TenantDashboard() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("tenant").then((user) => {
       if (user) { setTenantName(user.fullname || "Tenant"); fetchData(user.user_id); }
       else setLoading(false);
     });
@@ -168,7 +167,7 @@ export default function TenantDashboard() {
 
   function onRefresh() {
     setRefreshing(true);
-    UserStorage.getUser().then((u) => { if (u) fetchData(u.user_id); });
+    UserStorage.getUser("tenant").then((u) => { if (u) fetchData(u.user_id); });
   }
 
   const journey          = deriveJourney(bookings, payments);
@@ -197,7 +196,7 @@ export default function TenantDashboard() {
   }
 
   return (
-    <SafeAreaView style={S.container} edges={["top"]}>
+    <View style={S.container}>
       {/* ── Header ── */}
       <View style={S.header}>
         <View style={{ flex: 1 }}>
@@ -465,7 +464,7 @@ export default function TenantDashboard() {
           <View style={{ height: 24 }} />
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -60,7 +60,7 @@ export default function OwnerBookingsPage() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("owner").then((user) => {
       if (user) { setOwnerId(user.user_id); fetchBookings(user.user_id); }
       else setLoading(false);
     });

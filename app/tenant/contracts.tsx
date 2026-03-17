@@ -51,7 +51,7 @@ function ContractsList() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("tenant").then((user) => {
       if (user) fetchContracts(user.user_id);
       else setLoading(false);
     });
@@ -59,7 +59,7 @@ function ContractsList() {
 
   function onRefresh() {
     setRefreshing(true);
-    UserStorage.getUser().then((user) => { if (user) fetchContracts(user.user_id); });
+    UserStorage.getUser("tenant").then((user) => { if (user) fetchContracts(user.user_id); });
   }
 
   return (
@@ -210,7 +210,7 @@ function ContractForm() {
   });
 
   useEffect(() => {
-    UserStorage.getUser().then((u) => { if (u) setTenantName(u.fullname); });
+    UserStorage.getUser("tenant").then((u) => { if (u) setTenantName(u.fullname); });
   }, []);
 
   async function pickPhoto(type: "face" | "id") {

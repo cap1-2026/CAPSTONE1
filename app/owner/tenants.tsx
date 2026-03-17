@@ -48,7 +48,7 @@ export default function TenantsPage() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("owner").then((user) => {
       if (user) fetchTenants(user.user_id);
       else setLoading(false);
     });
@@ -56,7 +56,7 @@ export default function TenantsPage() {
 
   function onRefresh() {
     setRefreshing(true);
-    UserStorage.getUser().then((user) => { if (user) fetchTenants(user.user_id); });
+    UserStorage.getUser("owner").then((user) => { if (user) fetchTenants(user.user_id); });
   }
 
   const filtered = tenants.filter((t) => {

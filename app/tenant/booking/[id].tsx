@@ -50,7 +50,7 @@ export default function BookingPage() {
 
   // Pre-fill from stored user
   useEffect(() => {
-    UserStorage.getUser().then((u) => {
+    UserStorage.getUser("tenant").then((u) => {
       if (u) { setFullName(u.fullname); setEmail(u.email); }
     });
   }, []);
@@ -88,7 +88,7 @@ export default function BookingPage() {
     setSubmitting(true);
 
     try {
-      const user = await UserStorage.getUser();
+      const user = await UserStorage.getUser("tenant");
       if (!user) { showAlert("Error", "Please log in first."); setSubmitting(false); return; }
 
       const form = new FormData();

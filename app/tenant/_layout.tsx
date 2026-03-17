@@ -2,7 +2,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Slot, useRouter, useSegments } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { UserStorage } from "../../utils/userStorage";
 
@@ -15,7 +15,7 @@ export default function TenantLayout() {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("tenant").then((user) => {
       if (!user || user.role !== "tenant") {
         router.replace("/" as any);
         return;
@@ -25,7 +25,7 @@ export default function TenantLayout() {
   }, []);
 
   async function handleLogout() {
-    await UserStorage.clearUser();
+    await UserStorage.clearUser("tenant");
     router.replace("/" as any);
   }
 
@@ -46,12 +46,10 @@ export default function TenantLayout() {
               <Ionicons name="arrow-back" size={18} color="#374151" />
             </TouchableOpacity>
           ) : null}
-          <View style={styles.logoRow}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="home" size={16} color="#fff" />
-            </View>
+          <TouchableOpacity style={styles.logoRow} onPress={() => router.push("/tenant/home" as any)}>
+            <Image source={require("../../assets/images/apartmentlogo.png")} style={styles.logoImg} />
             <Text style={styles.logoText}>PadFinder</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.headerRight}>
@@ -79,7 +77,7 @@ const styles = StyleSheet.create({
   headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backBtn:     { width: 34, height: 34, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   logoRow:     { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  logoIcon:    { width: 30, height: 30, borderRadius: 8, backgroundColor: '#1D4ED8', alignItems: 'center', justifyContent: 'center' },
+  logoImg:     { width: 32, height: 32, borderRadius: 8 },
   logoText:    { fontSize: 17, fontWeight: '800', color: '#0F172A', letterSpacing: -0.3 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   iconBtn:     { width: 36, height: 36, borderRadius: 8, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },

@@ -56,7 +56,7 @@ export default function OwnerDashboard() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("owner").then((user) => {
       if (user) {
         setOwnerName(user.fullname || "Owner");
         fetchData(user.user_id);
@@ -68,7 +68,7 @@ export default function OwnerDashboard() {
 
   function onRefresh() {
     setRefreshing(true);
-    UserStorage.getUser().then((user) => { if (user) fetchData(user.user_id); });
+    UserStorage.getUser("owner").then((user) => { if (user) fetchData(user.user_id); });
   }
 
   const getStatusColor = (status: string) => {

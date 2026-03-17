@@ -130,7 +130,7 @@ export default function RoleLogin() {
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
-                placeholderTextColor="#C4C9D4"
+                placeholderTextColor="#9CA3AF"
               />
             </View>
           </View>
@@ -151,7 +151,7 @@ export default function RoleLogin() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
-                placeholderTextColor="#C4C9D4"
+                placeholderTextColor="#9CA3AF"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
                 <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={18} color="#9CA3AF" />

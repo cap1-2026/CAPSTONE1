@@ -45,7 +45,7 @@ export default function LeaseContractPage() {
   });
 
   useEffect(() => {
-    UserStorage.getUser().then((u) => { if (u) setTenantName(u.fullname); });
+    UserStorage.getUser("tenant").then((u) => { if (u) setTenantName(u.fullname); });
   }, []);
 
   async function pickPhoto(type: "face" | "id") {

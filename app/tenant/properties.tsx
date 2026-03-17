@@ -42,7 +42,7 @@ export default function TenantPropertiesPage() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("tenant").then((user) => {
       if (user) fetchBookings(user.user_id);
       else setLoading(false);
     });
@@ -50,7 +50,7 @@ export default function TenantPropertiesPage() {
 
   function onRefresh() {
     setRefreshing(true);
-    UserStorage.getUser().then((user) => { if (user) fetchBookings(user.user_id); });
+    UserStorage.getUser("tenant").then((user) => { if (user) fetchBookings(user.user_id); });
   }
 
   const filtered = filter === "all" ? bookings : bookings.filter((b) => b.status === filter);

@@ -34,7 +34,7 @@ export default function Financials() {
   }, []);
 
   useEffect(() => {
-    UserStorage.getUser().then((user) => {
+    UserStorage.getUser("owner").then((user) => {
       if (user) { setOwnerId(user.user_id); fetchPayments(user.user_id); }
       else setLoading(false);
     });
