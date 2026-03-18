@@ -10,10 +10,10 @@ export default function TenantHome() {
   const router = useRouter();
 
   const propertyTypes = [
-    { name: "Apartments", count: "150+", icon: "office-building", color: "#EFF6FF", iconColor: "#2563EB" },
-    { name: "Condominiums", count: "89+", icon: "home-city", color: "#F5F3FF", iconColor: "#7C3AED" },
-    { name: "Dormitories", count: "45+", icon: "bed-king-outline", color: "#FFF7ED", iconColor: "#EA580C" },
-    { name: "Transient", count: "32+", icon: "airplane", color: "#F0FDF4", iconColor: "#059669" },
+    { name: "Apartments",   type: "Apartment",   icon: "office-building",   color: "#EFF6FF", iconColor: "#2563EB", desc: "Ideal for long-term living" },
+    { name: "Condominiums", type: "Condominium",  icon: "home-city",          color: "#F5F3FF", iconColor: "#7C3AED", desc: "Modern units & amenities" },
+    { name: "Dormitories",  type: "Dormitory",    icon: "bed-king-outline",   color: "#FFF7ED", iconColor: "#EA580C", desc: "Affordable shared spaces" },
+    { name: "Transient",    type: "Transient",    icon: "home-outline",       color: "#F0FDF4", iconColor: "#059669", desc: "Short-term stays & rooms" },
   ];
 
   const steps = [
@@ -66,18 +66,22 @@ export default function TenantHome() {
       {/* Browse by Type */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Browse by Type</Text>
+        <Text style={styles.sectionSub}>Find the right property for your needs</Text>
         <View style={styles.typesGrid}>
           {propertyTypes.map((t, i) => (
             <TouchableOpacity
               key={i}
               style={styles.typeCard}
-              onPress={() => router.push(`/tenant/browse-properties?type=${t.name.slice(0, -1)}` as any)}
+              onPress={() => router.push(`/tenant/browse-properties?type=${t.type}` as any)}
             >
               <View style={[styles.typeIcon, { backgroundColor: t.color }]}>
-                <MaterialCommunityIcons name={t.icon as any} size={26} color={t.iconColor} />
+                <MaterialCommunityIcons name={t.icon as any} size={28} color={t.iconColor} />
               </View>
               <Text style={styles.typeName}>{t.name}</Text>
-              <Text style={styles.typeCount}>{t.count} listings</Text>
+              <Text style={styles.typeDesc}>{t.desc}</Text>
+              <View style={[styles.typeBrowseBtn, { backgroundColor: t.color }]}>
+                <Text style={[styles.typeBrowseBtnText, { color: t.iconColor }]}>Browse →</Text>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -159,10 +163,12 @@ const styles = StyleSheet.create({
   dashSub: { fontSize: 12, color: "#64748B" },
 
   typesGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 },
-  typeCard: { width: GRID_COL, backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 6, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
-  typeIcon: { width: 54, height: 54, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  typeCard: { width: GRID_COL, backgroundColor: "#fff", borderRadius: 14, padding: 16, alignItems: "center", gap: 6, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  typeIcon: { width: 58, height: 58, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 2 },
   typeName: { fontSize: 14, fontWeight: "700", color: "#1E293B" },
-  typeCount: { fontSize: 12, color: "#64748B" },
+  typeDesc: { fontSize: 11, color: "#64748B", textAlign: "center", lineHeight: 15 },
+  typeBrowseBtn: { marginTop: 4, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 },
+  typeBrowseBtnText: { fontSize: 12, fontWeight: "700" },
 
   benefitsRow: { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, padding: 16, justifyContent: "space-around", shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, marginTop: 8 },
   benefitItem: { alignItems: "center", gap: 6 },

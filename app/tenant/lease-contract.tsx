@@ -232,16 +232,16 @@ export default function LeaseContractPage() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>TERMS AND CONDITIONS</Text>
           {[
-            { num: "1",  title: "PAYMENT OF RENT",        body: `The Lessee agrees to pay the monthly rent of ₱${monthlyRent.toLocaleString()} on or before the 1st day of each month. A grace period of five (5) days is provided. Payments made after the grace period are subject to a late fee of ₱200 per day.` },
-            { num: "2",  title: "SECURITY DEPOSIT",       body: `A security deposit of ₱${depositAmount.toLocaleString()} shall be held in PadFinder Escrow. This amount will be returned within thirty (30) days after the Lessee vacates the property, subject to deductions for damages beyond normal wear and tear.` },
-            { num: "3",  title: "USE OF PREMISES",        body: "The leased property shall be used exclusively for residential purposes. The Lessee shall not use the premises for any illegal activity, commercial operations, or sub-letting without the prior written consent of the Lessor." },
-            { num: "4",  title: "MAINTENANCE AND REPAIRS",body: "The Lessee shall keep the premises clean and in good condition. Minor repairs (under ₱500) are the Lessee's responsibility. Major structural repairs are the Lessor's responsibility." },
-            { num: "5",  title: "TERMINATION OF LEASE",   body: "Either party may terminate this agreement by providing thirty (30) days written notice. Early termination by the Lessee may result in forfeiture of the security deposit." },
-            { num: "6",  title: "ENTRY AND INSPECTION",   body: "The Lessor reserves the right to enter the property with twenty-four (24) hours advance notice for inspections, repairs, or showings." },
-            { num: "7",  title: "UTILITIES",              body: "The Lessee shall be responsible for all utility bills including electricity, water, internet, and cable unless otherwise agreed." },
-            { num: "8",  title: "PETS AND ALTERATIONS",   body: "No pets are allowed without prior written consent of the Lessor. No structural alterations may be made without written approval." },
-            { num: "9",  title: "RENEWAL",                body: "This lease may be renewed upon mutual written agreement at least thirty (30) days before the expiration date." },
-            { num: "10", title: "GOVERNING LAW",          body: "This agreement shall be governed by the laws of the Republic of the Philippines. Any disputes shall first be resolved through PadFinder mediation." },
+            { num: "1",  title: "PAYMENT OF RENT",        body: `Monthly rent of ₱${monthlyRent.toLocaleString()} is due on or before the 1st of each month. A grace period of five (5) days is provided. Payments after the grace period are subject to a ₱200/day late fee.` },
+            { num: "2",  title: "SECURITY DEPOSIT",       body: `A deposit of ₱${depositAmount.toLocaleString()} is held in escrow. Returned within 30 days after vacating, less any deductions for damages beyond normal wear and tear.` },
+            { num: "3",  title: "USE OF PREMISES",        body: "The property shall be used exclusively for residential purposes. No illegal activity, commercial use, or subletting without written Lessor consent." },
+            { num: "4",  title: "MAINTENANCE AND REPAIRS",body: "Lessee maintains cleanliness. Minor repairs (under ₱500) are Lessee's responsibility. Major structural repairs are the Lessor's responsibility." },
+            { num: "5",  title: "TERMINATION OF LEASE",   body: "Either party may terminate with 30-day written notice. Early termination by Lessee may result in forfeiture of security deposit." },
+            { num: "6",  title: "ENTRY AND INSPECTION",   body: "Lessor may enter with 24-hour advance notice for inspections, repairs, or showings." },
+            { num: "7",  title: "UTILITIES",              body: "Lessee is responsible for electricity, water, internet, and cable unless otherwise agreed." },
+            { num: "8",  title: "PETS AND ALTERATIONS",   body: "No pets without written consent. No structural alterations without written approval." },
+            { num: "9",  title: "RENEWAL",                body: "Lease may be renewed upon mutual written agreement at least 30 days before expiration." },
+            { num: "10", title: "GOVERNING LAW",          body: "This agreement is governed by Philippine law. Disputes shall first be resolved through PadFinder mediation." },
           ].map((clause) => (
             <View key={clause.num} style={styles.clause}>
               <View style={styles.clauseNumBadge}>

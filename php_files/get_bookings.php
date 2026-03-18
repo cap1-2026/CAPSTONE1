@@ -22,8 +22,8 @@ try {
         // Get specific booking with property details
         $stmt = $conn->prepare("
             SELECT b.*, p.name as property_name, p.address as property_address,
-                   p.price as property_price, p.deposit as property_deposit,
-                   u.fullname as tenant_name
+                   p.price as property_price, u.fullname as tenant_name, u.email as tenant_email,
+                   b.lease_contract_file, b.tenant_signature
             FROM bookings b
             LEFT JOIN properties p ON b.property_id = p.id
             LEFT JOIN users u ON b.tenant_id = u.id
@@ -32,7 +32,7 @@ try {
         $stmt->bind_param("i", $booking_id);
         $stmt->execute();
         $result = $stmt->get_result();
-        
+
         if ($result->num_rows > 0) {
             echo json_encode(["status"=>"success", "data"=>$result->fetch_assoc()]);
         } else {
@@ -43,7 +43,9 @@ try {
         // Get bookings by tenant
         $query = "
             SELECT b.*, p.name as property_name, p.address as property_address,
-                   p.price as property_price, p.deposit as property_deposit
+                   p.price as property_price, p.deposit as property_deposit,
+                   p.type as property_type,
+                   b.lease_contract_file, b.tenant_signature
             FROM bookings b
             LEFT JOIN properties p ON b.property_id = p.id
             WHERE b.tenant_id = ?
@@ -51,7 +53,7 @@ try {
         
         if ($status) {
             $query .= " AND b.status = ?";
-            $stmt = $conn->prepare($query . " AND b.status = ? ORDER BY b.id DESC");
+            $stmt = $conn->prepare($query . " ORDER BY b.id DESC");
             $stmt->bind_param("is", $tenant_id, $status);
         } else {
             $stmt = $conn->prepare($query . " ORDER BY b.id DESC");
@@ -72,7 +74,9 @@ try {
         $query = "
             SELECT b.*, p.name as property_name, p.address as property_address,
                    p.price as property_price, p.deposit as property_deposit,
-                   u.fullname as tenant_name, u.email as tenant_email
+                   p.type as property_type,
+                   u.fullname as tenant_name, u.email as tenant_email,
+                   b.lease_contract_file, b.tenant_signature
             FROM bookings b
             LEFT JOIN properties p ON b.property_id = p.id
             LEFT JOIN users u ON b.tenant_id = u.id

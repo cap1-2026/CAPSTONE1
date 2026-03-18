@@ -8,8 +8,36 @@ import {
 } from "react-native";
 import API_ENDPOINTS, { API_BASE_URL } from "../../config/api";
 
+// Send a notification to a user after admin action
+async function sendAdminNotification(
+  userId: number,
+  role: "owner" | "tenant",
+  type: string,
+  title: string,
+  message: string,
+  relatedId: number,
+) {
+  try {
+    await fetch(API_ENDPOINTS.NOTIFICATIONS, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        user_id: userId,
+        user_role: role,
+        type,
+        title,
+        message,
+        related_id: relatedId,
+        action_type: "approval",
+      }),
+    });
+  } catch { /* non-critical */ }
+}
+
 interface Property {
   id: number;
+  owner_id?: number;
   name: string;
   property_type: string;
   address: string;
@@ -32,7 +60,7 @@ export default function AdminApprovals() {
   const [refreshing, setRefreshing]       = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [search, setSearch]               = useState("");
-  const [filter, setFilter]               = useState<"pending" | "all">("pending");
+  const [filter, setFilter]               = useState<"pending" | "approved" | "rejected">("pending");
 
   // View Details modal
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -98,6 +126,20 @@ export default function AdminApprovals() {
               ? `"${property.name}" approved — now live for tenants.`
               : `"${property.name}" rejected and hidden from tenants.`,
           });
+
+          // Notify the property owner
+          if (property.owner_id) {
+            const ownerTitle   = action === "approved"
+              ? "Property Approved!"
+              : "Property Not Approved";
+            const ownerMessage = action === "approved"
+              ? `Your property "${property.name}" at ${property.address || "—"} has been approved by admin and is now live for tenants. Monthly Rent: ₱${Number(property.price).toLocaleString()} | Security Deposit: ₱${Number(property.deposit).toLocaleString()} | Rooms: ${property.rooms} | Amenities: ${property.amenities || "—"}`
+              : `Your property "${property.name}" was not approved by admin. Please review your listing details and resubmit.`;
+            sendAdminNotification(
+              property.owner_id, "owner", "property",
+              ownerTitle, ownerMessage, property.id,
+            );
+          }
         } else {
           Alert.alert("Failed", `Server: ${data.message ?? "Unknown error"}`);
         }
@@ -126,7 +168,7 @@ export default function AdminApprovals() {
   }
 
   const filtered = properties.filter((p) => {
-    const matchStatus = filter === "all" || p.status === filter;
+    const matchStatus = p.status === filter;
     const q = search.toLowerCase();
     const matchSearch = !q ||
       (p.name       || "").toLowerCase().includes(q) ||
@@ -440,14 +482,18 @@ export default function AdminApprovals() {
 
       {/* Filter Tabs */}
       <View style={styles.tabsRow}>
-        {(["pending", "all"] as const).map((f) => (
+        {([
+          { key: "pending",  label: "Pending",  count: pendingCount  },
+          { key: "approved", label: "Approved", count: approvedCount },
+          { key: "rejected", label: "Rejected", count: rejectedCount },
+        ] as { key: "pending"|"approved"|"rejected"; label: string; count: number }[]).map(({ key, label, count }) => (
           <TouchableOpacity
-            key={f}
-            style={[styles.tab, filter === f && styles.tabActive]}
-            onPress={() => setFilter(f)}
+            key={key}
+            style={[styles.tab, filter === key && styles.tabActive]}
+            onPress={() => setFilter(key)}
           >
-            <Text style={[styles.tabText, filter === f && styles.tabTextActive]}>
-              {f === "pending" ? `Pending (${pendingCount})` : `All (${properties.length})`}
+            <Text style={[styles.tabText, filter === key && styles.tabTextActive]}>
+              {label} ({count})
             </Text>
           </TouchableOpacity>
         ))}
@@ -473,7 +519,7 @@ export default function AdminApprovals() {
             <View style={styles.empty}>
               <MaterialCommunityIcons name="home-search-outline" size={64} color="#CBD5E1" />
               <Text style={styles.emptyTitle}>
-                {filter === "pending" ? "No pending properties" : "No properties found"}
+                {filter === "pending" ? "No pending properties" : `No ${filter} properties found`}
               </Text>
             </View>
           ) : (
@@ -579,7 +625,7 @@ const styles = StyleSheet.create({
   empty:              { alignItems: "center", paddingVertical: 60, gap: 10 },
   emptyTitle:         { fontSize: 18, fontWeight: "700", color: "#94A3B8", marginTop: 8 },
   card:               { backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  cardImage:          { width: "100%", height: 160 },
+  cardImage:          { width: "100%", height: 200, backgroundColor: "#E2E8F0" },
   noImage:            { backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
   statusBadge:        { position: "absolute", top: 10, right: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusText:         { fontSize: 10, fontWeight: "700" },

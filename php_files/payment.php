@@ -20,28 +20,30 @@ if (!$data || !isset($data->booking_id) || !isset($data->amount)) {
 
 $booking_id = $data->booking_id;
 $amount = $data->amount;
-$method = $data->method ?? 'cash';
+$method = $data->method ?? 'paymongo';
+$transaction_id = $data->transaction_id ?? null;
 
-// Generate unique transaction ID
-$transaction = "TXN" . time() . rand(1000, 9999);
+// Generate unique transaction ID if not provided
+$transaction = $transaction_id ?: "TXN" . time() . rand(1000, 9999);
 
-// Use prepared statement
-$stmt = $conn->prepare("INSERT INTO payments (booking_id, amount, method, transaction_id, status, created_at) VALUES (?, ?, ?, ?, 'paid', NOW())");
-$stmt->bind_param("idss", $booking_id, $amount, $method, $transaction);
+try {
+    // Use prepared statement
+    $stmt = $conn->prepare("INSERT INTO payments (booking_id, amount, method, transaction_id, status, created_at) VALUES (?, ?, ?, ?, 'paid', NOW())");
+    $stmt->bind_param("idss", $booking_id, $amount, $method, $transaction);
 
-if($stmt->execute()){
-    // Mark booking as awaiting owner payment approval
-    $stmt2 = $conn->prepare("UPDATE bookings SET payment_status = 'pending_owner_approval' WHERE id = ?");
-    $stmt2->bind_param("i", $booking_id);
-    $stmt2->execute();
-    $stmt2->close();
+    if($stmt->execute()){
+        // Mark booking as awaiting owner payment approval
+        $stmt2 = $conn->prepare("UPDATE bookings SET payment_status = 'pending_owner_approval' WHERE id = ?");
+        $stmt2->bind_param("i", $booking_id);
+        $stmt2->execute();
+        $stmt2->close();
 
-    echo json_encode([
-        "status"=>"success",
-        "message"=>"Payment processed successfully",
-        "transaction_id"=>$transaction,
-        "amount"=>$amount
-    ]);
+        echo json_encode([
+            "status"=>"success",
+            "message"=>"Payment processed successfully",
+            "transaction_id"=>$transaction,
+            "amount"=>$amount
+        ]);
 }else{
     echo json_encode([
         "status"=>"error",

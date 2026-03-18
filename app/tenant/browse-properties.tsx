@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator, Image, Modal, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View
@@ -39,6 +39,15 @@ export default function BrowseProperties() {
       fetchProperties();
     }, [])
   );
+
+  // Sync URL ?type= param into the filter panel on first load
+  useEffect(() => {
+    if (!propertyTypeParam || propertyTypeParam === "All") return;
+    const match = propertyTypeOptions.find(
+      (opt) => opt.toLowerCase() === propertyTypeParam.toLowerCase()
+    );
+    if (match) setSelectedPropertyType(match);
+  }, [propertyTypeParam]);
 
   async function fetchProperties(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
@@ -80,11 +89,9 @@ export default function BrowseProperties() {
       (prop.address || "").toLowerCase().includes(searchQuery.toLowerCase());
 
     const propType = (prop.property_type || "").trim().toLowerCase();
-    const paramType = propertyTypeParam.toLowerCase();
-    const matchesType = paramType === "all" || propType === "" || propType === paramType;
-
     const panelType = selectedPropertyType.toLowerCase();
-    const matchesPropertyType = panelType === "all" || propType === "" || propType === panelType;
+    // Only match if panel is "all" OR the property type exactly matches the selected type
+    const matchesPropertyType = panelType === "all" || propType === panelType;
 
     let matchesPriceRange = true;
     const price = parseFloat(prop.price) || 0;
@@ -107,7 +114,7 @@ export default function BrowseProperties() {
     if (amenityFilters.security && !amenityStr.includes("security") && !amenityStr.includes("guard")) matchesAmenities = false;
     if (amenityFilters.elevator && !amenityStr.includes("elevator")) matchesAmenities = false;
 
-    return matchesSearch && matchesType && matchesPropertyType &&
+    return matchesSearch && matchesPropertyType &&
       matchesPriceRange && matchesBedrooms && matchesAmenities;
   });
 

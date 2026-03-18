@@ -27,8 +27,9 @@ const API_ENDPOINTS = {
   BOOK_ROOM:       `${API_BASE_URL}/book_room.php`,
   APPROVE_BOOKING: `${API_BASE_URL}/approve_booking.php`,
   DELETE_BOOKING:  `${API_BASE_URL}/delete_booking.php`,
-  SUBMIT_CONTRACT: `${API_BASE_URL}/submit_contract.php`,
-  APPROVE_CONTRACT:`${API_BASE_URL}/approve_contract.php`,
+  SUBMIT_CONTRACT:        `${API_BASE_URL}/submit_contract.php`,
+  APPROVE_CONTRACT:       `${API_BASE_URL}/approve_contract.php`,
+  UPLOAD_LEASE_CONTRACT:  `${API_BASE_URL}/upload_lease_contract.php`,
 
   // ── Payments ──────────────────────────────────────────
   PAYMENT:         `${API_BASE_URL}/payment.php`,
@@ -38,6 +39,12 @@ const API_ENDPOINTS = {
   // ── Admin ─────────────────────────────────────────────
   GET_ADMIN_STATS: `${API_BASE_URL}/get_admin_stats.php`,
   GET_USERS:       `${API_BASE_URL}/get_users.php`,
+
+  // ── Notifications ─────────────────────────────────────
+  NOTIFICATIONS:   `${API_BASE_URL}/notifications.php`,
+
+  // ── PayMongo ──────────────────────────────────────────
+  PAYMONGO_PAYMENT:`${API_BASE_URL}/paymongo_payment.php`,
 
   // ── Misc ──────────────────────────────────────────────
   VERIFY_QR:       `${API_BASE_URL}/verify_qr.php`,

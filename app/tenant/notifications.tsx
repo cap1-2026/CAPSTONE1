@@ -1,291 +1,282 @@
+// app/tenant/notifications.tsx — Live notifications via API
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator, Alert, RefreshControl,
+  ScrollView, StyleSheet, Text, TouchableOpacity, View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import API_ENDPOINTS from "../../config/api";
+import { UserStorage } from "../../utils/userStorage";
 
-type NotificationType = "all" | "booking" | "payment";
+type NType = "all" | "booking" | "payment" | "contract" | "qr" | "property";
 
-interface Notification {
+interface Notif {
   id: string;
-  type: Exclude<NotificationType, "all">;
+  type: Exclude<NType, "all">;
   title: string;
   message: string;
-  timestamp: string;
-  isRead: boolean;
-  actionRequired?: boolean;
-  actionType?: "payment" | "approval" | "contract" | "review";
-  bookingId?: string;
-  propertyName?: string;
+  is_read: string | number | boolean;
+  created_at: string;
+  related_id?: number;
+  action_type?: string;
+}
+
+const TYPE_META: Record<string, { icon: any; color: string; label: string }> = {
+  booking:  { icon: "calendar",              color: "#2196F3", label: "Booking"  },
+  payment:  { icon: "card",                  color: "#4CAF50", label: "Payment"  },
+  contract: { icon: "document-text-outline", color: "#9C27B0", label: "Contract" },
+  qr:       { icon: "qr-code",               color: "#FF9800", label: "QR Code"  },
+  property: { icon: "home",                  color: "#607D8B", label: "Property" },
+};
+
+function timeAgo(dateStr: string) {
+  const now  = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = Math.floor((now - then) / 1000);
+  if (diff < 60)   return "Just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400)return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800)return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const [filter, setFilter] = useState<NotificationType>("all");
+  const [filter, setFilter]       = useState<NType>("all");
+  const [userId, setUserId]       = useState<number | null>(null);
+  const [items, setItems]         = useState<Notif[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      type: "booking",
-      title: "Booking Approved! 🎉",
-      message: "Your booking request for Sunshine Apartments Unit 3A has been approved by the owner. You can now proceed to payment to secure your reservation.",
-      timestamp: "2 hours ago",
-      isRead: false,
-      actionRequired: true,
-      actionType: "payment",
-      bookingId: "1",
-      propertyName: "Sunshine Apartments Unit 3A"
-    },
-    {
-      id: "2",
-      type: "payment",
-      title: "Payment Reminder",
-      message: "Complete your payment within 48 hours to confirm your booking for Sunshine Apartments Unit 3A.",
-      timestamp: "5 hours ago",
-      isRead: false,
-      actionRequired: true,
-      actionType: "payment"
-    },
-    {
-      id: "3",
-      type: "booking",
-      title: "Booking Request Submitted",
-      message: "Your booking request for Modern Studio Downtown has been submitted and is pending owner approval.",
-      timestamp: "1 day ago",
-      isRead: true,
-      actionRequired: false
-    },
-    {
-      id: "4",
-      type: "booking",
-      title: "Booking Request Rejected",
-      message: "Unfortunately, your booking request for Cozy 2BR Condo was not approved. The property may no longer be available.",
-      timestamp: "3 days ago",
-      isRead: true,
-      actionRequired: false
+  // Load user ID
+  useEffect(() => {
+    UserStorage.getUser("tenant").then((u) => {
+      if (u?.user_id) setUserId(Number(u.user_id));
+    });
+  }, []);
+
+  const fetchNotifications = useCallback(async (uid?: number) => {
+    const id = uid ?? userId;
+    if (!id) { setLoading(false); return; }
+    try {
+      const res  = await fetch(`${API_ENDPOINTS.NOTIFICATIONS}?user_id=${id}&role=tenant&_t=${Date.now()}`);
+      const data = await res.json();
+      if (data.status === "success") {
+        setItems(data.data ?? []);
+      }
+    } catch { /* silent */ } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  ]);
+  }, [userId]);
 
-  const filteredNotifications = notifications.filter(notif => {
-    return filter === "all" || notif.type === filter;
-  });
+  useEffect(() => {
+    if (userId) fetchNotifications(userId);
+  }, [userId]);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!userId) return;
+    const interval = setInterval(() => fetchNotifications(userId), 30000);
+    return () => clearInterval(interval);
+  }, [userId, fetchNotifications]);
 
-  const getNotificationIcon = (type: Exclude<NotificationType, "all">) => {
-    switch (type) {
-      case "booking": return "calendar";
-      case "payment": return "card";
-      default: return "notifications";
+  async function markRead(id: string) {
+    setItems(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+    try {
+      await fetch(API_ENDPOINTS.NOTIFICATIONS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_read", id }),
+      });
+    } catch { /* silent */ }
+  }
+
+  async function markAllRead() {
+    if (!userId) return;
+    setItems(prev => prev.map(n => ({ ...n, is_read: 1 })));
+    try {
+      await fetch(API_ENDPOINTS.NOTIFICATIONS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_all_read", user_id: userId, user_role: "tenant" }),
+      });
+    } catch { /* silent */ }
+  }
+
+  async function deleteNotif(id: string) {
+    Alert.alert("Delete Notification", "Remove this notification?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete", style: "destructive",
+        onPress: async () => {
+          setItems(prev => prev.filter(n => n.id !== id));
+          try {
+            await fetch(API_ENDPOINTS.NOTIFICATIONS, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "delete", id }),
+            });
+          } catch { /* silent */ }
+        },
+      },
+    ]);
+  }
+
+  function handleAction(n: Notif) {
+    markRead(n.id);
+    switch (n.action_type) {
+      case "payment":  router.push("/tenant/payment");  break;
+      case "approval": router.push("/tenant/approvals"); break;
+      case "contract": router.push("/tenant/approvals"); break;
+      case "qr":       router.push("/tenant/payment-qr"); break;
+      default:         router.push("/tenant/approvals"); break;
     }
-  };
+  }
 
-  const getNotificationColor = (type: Exclude<NotificationType, "all">) => {
-    switch (type) {
-      case "booking": return "#2196F3";
-      case "payment": return "#4CAF50";
-      default: return "#666";
-    }
-  };
+  const filtered = filter === "all" ? items : items.filter(n => n.type === filter);
+  const unread   = items.filter(n => !n.is_read || n.is_read === "0").length;
 
-  const markAsRead = (notificationId: string) => {
-    setNotifications(prev =>
-      prev.map(notif =>
-        notif.id === notificationId ? { ...notif, isRead: true } : notif
-      )
-    );
-  };
-
-  const deleteNotification = (notificationId: string) => {
-    Alert.alert(
-      "Delete Notification",
-      "Are you sure you want to delete this notification?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-          }
-        }
-      ]
-    );
-  };
-
-  const handleAction = (notification: Notification) => {
-    markAsRead(notification.id);
-    
-    switch (notification.actionType) {
-      case "payment":
-        router.push("/tenant/payment");
-        break;
-      case "approval":
-        router.push("/tenant/approvals");
-        break;
-      case "contract":
-        // Navigate to contracts page when implemented
-        Alert.alert("Contracts", "Contract management coming soon!");
-        break;
-      case "review":
-        router.push("/tenant/browse-properties");
-        break;
-      default:
-        break;
-    }
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
-  };
+  const TABS: { key: NType; label: string }[] = [
+    { key: "all",      label: "All"      },
+    { key: "booking",  label: "Booking"  },
+    { key: "payment",  label: "Payment"  },
+    { key: "contract", label: "Contract" },
+    { key: "qr",       label: "QR Code"  },
+  ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerTextContainer}>
+        <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>Notifications</Text>
-          {unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{unreadCount} new</Text>
-            </View>
+          {unread > 0 && (
+            <View style={styles.badge}><Text style={styles.badgeText}>{unread} new</Text></View>
           )}
         </View>
-        {unreadCount > 0 && (
-          <TouchableOpacity 
-            style={styles.markAllButton}
-            onPress={markAllAsRead}
-          >
-            <Text style={styles.markAllButtonText}>Mark all read</Text>
+        {unread > 0 && (
+          <TouchableOpacity onPress={markAllRead}>
+            <Text style={styles.markAllTxt}>Mark all read</Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity style={styles.refreshBtn} onPress={() => { setRefreshing(true); fetchNotifications(); }}>
+          <Ionicons name="refresh-outline" size={20} color="#007AFF" />
+        </TouchableOpacity>
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterTabs}
-        >
-          {(["all", "booking", "payment"] as NotificationType[]).map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.filterChip, filter === f && styles.filterChipActive]}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[styles.filterChipText, filter === f && styles.filterChipTextActive]}>
-                {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      <View style={styles.filterWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {TABS.map(({ key, label }) => {
+            const count = key === "all" ? items.length : items.filter(n => n.type === key).length;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.chip, filter === key && styles.chipActive]}
+                onPress={() => setFilter(key)}
+              >
+                <Text style={[styles.chipTxt, filter === key && styles.chipTxtActive]}>
+                  {label}{count > 0 ? ` (${count})` : ""}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
-      {/* Notifications List */}
-      <ScrollView style={styles.notificationsList}>
-        {filteredNotifications.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="notifications-off-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyStateText}>No notifications found</Text>
-            <Text style={styles.emptyStateSubtext}>
-              {filter === "all" 
-                ? "You're all caught up!" 
-                : `No ${filter} notifications`}
-            </Text>
-          </View>
-        ) : (
-          filteredNotifications.map((notification) => (
-            // @ts-ignore - React key prop is valid but not in ViewProps type definition
-            <TouchableOpacity
-              key={notification.id}
-              style={[
-                styles.notificationCard,
-                !notification.isRead && styles.notificationCardUnread
-              ]}
-              onPress={() => markAsRead(notification.id)}
-              activeOpacity={0.7}
-            >
-              {/* Icon */}
-              <View style={[styles.notificationIcon, { backgroundColor: getNotificationColor(notification.type) }]}>
-                <Ionicons 
-                  name={getNotificationIcon(notification.type) as any}
-                  size={24} 
-                  color="#fff" 
-                />
-              </View>
-
-              {/* Content */}
-              <View style={styles.notificationContent}>
-                <View style={styles.notificationHeader}>
-                  <Text style={styles.notificationTitle}>{notification.title}</Text>
-                  {!notification.isRead && (
-                    <View style={styles.unreadDot} />
-                  )}
-                </View>
-
-                <Text style={styles.notificationMessage}>{notification.message}</Text>
-
-                {notification.propertyName && (
-                  <View style={styles.propertyTag}>
-                    <Ionicons name="home-outline" size={12} color="#666" />
-                    <Text style={styles.propertyTagText}>{notification.propertyName}</Text>
+      {/* List */}
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingTxt}>Loading notifications…</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchNotifications(); }} colors={["#007AFF"]} />}
+        >
+          {filtered.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="notifications-off-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyTxt}>No notifications</Text>
+              <Text style={styles.emptySub}>{filter === "all" ? "You're all caught up!" : `No ${filter} notifications yet`}</Text>
+            </View>
+          ) : (
+            filtered.map((n) => {
+              const meta     = TYPE_META[n.type] ?? TYPE_META.booking;
+              const isUnread = !n.is_read || n.is_read === "0" || n.is_read === 0;
+              const hasAction= !!n.action_type;
+              return (
+                <TouchableOpacity
+                  key={n.id}
+                  style={[styles.card, isUnread && styles.cardUnread]}
+                  onPress={() => markRead(n.id)}
+                  activeOpacity={0.8}
+                >
+                  {/* Icon */}
+                  <View style={[styles.iconWrap, { backgroundColor: meta.color }]}>
+                    <Ionicons name={meta.icon} size={22} color="#fff" />
                   </View>
-                )}
 
-                <Text style={styles.notificationTimestamp}>{notification.timestamp}</Text>
+                  {/* Content */}
+                  <View style={styles.content}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.title} numberOfLines={2}>{n.title}</Text>
+                      {isUnread && <View style={styles.dot} />}
+                    </View>
+                    <Text style={styles.msg}>{n.message}</Text>
 
-                {/* Action Buttons */}
-                {notification.actionRequired && notification.actionType === "payment" && (
-                  <TouchableOpacity 
-                    style={styles.actionButton}
-                    onPress={() => handleAction(notification)}
-                  >
-                    <Ionicons name="card-outline" size={18} color="#fff" />
-                    <Text style={styles.actionButtonText}>Proceed to Payment</Text>
+                    {/* Type badge */}
+                    <View style={styles.metaRow}>
+                      <View style={[styles.typeBadge, { backgroundColor: meta.color + "20" }]}>
+                        <Text style={[styles.typeBadgeTxt, { color: meta.color }]}>{meta.label}</Text>
+                      </View>
+                      <Text style={styles.time}>{timeAgo(n.created_at)}</Text>
+                    </View>
+
+                    {/* Action button */}
+                    {hasAction && (
+                      <TouchableOpacity style={styles.actionBtn} onPress={() => handleAction(n)}>
+                        <Ionicons name={
+                          n.action_type === "payment"  ? "card-outline"            :
+                          n.action_type === "contract" ? "document-text-outline"   :
+                          n.action_type === "qr"       ? "qr-code-outline"         :
+                          "checkmark-circle-outline"
+                        } size={16} color="#fff" />
+                        <Text style={styles.actionBtnTxt}>{
+                          n.action_type === "payment"  ? "Proceed to Payment"      :
+                          n.action_type === "contract" ? "View Contract"           :
+                          n.action_type === "qr"       ? "View QR Code"            :
+                          "View Status"
+                        }</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Delete */}
+                  <TouchableOpacity style={styles.delBtn} onPress={() => deleteNotif(n.id)}>
+                    <Ionicons name="trash-outline" size={18} color="#bbb" />
                   </TouchableOpacity>
-                )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+          <View style={{ height: 20 }} />
+        </ScrollView>
+      )}
 
-                {notification.actionRequired && notification.actionType === "approval" && (
-                  <TouchableOpacity 
-                    style={[styles.actionButton, styles.actionButtonSecondary]}
-                    onPress={() => handleAction(notification)}
-                  >
-                    <Ionicons name="checkmark-circle-outline" size={18} color="#007AFF" />
-                    <Text style={[styles.actionButtonText, styles.actionButtonTextSecondary]}>
-                      View Approval Status
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Delete Button */}
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => deleteNotification(notification.id)}
-              >
-                <Ionicons name="trash-outline" size={18} color="#999" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
-
-      {/* Quick Actions Footer */}
+      {/* Footer */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.footerButton}
-          onPress={() => router.push("/tenant/approvals")}
-        >
+        <TouchableOpacity style={styles.footerBtn} onPress={() => router.push("/tenant/approvals")}>
           <Ionicons name="checkmark-circle-outline" size={20} color="#007AFF" />
-          <Text style={styles.footerButtonText}>View Approvals</Text>
+          <Text style={styles.footerBtnTxt}>View Approvals</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.footerButton}
-          onPress={() => router.push("/tenant/browse-properties")}
-        >
+        <TouchableOpacity style={styles.footerBtn} onPress={() => router.push("/tenant/browse-properties")}>
           <Ionicons name="search-outline" size={20} color="#007AFF" />
-          <Text style={styles.footerButtonText}>Browse Properties</Text>
+          <Text style={styles.footerBtnTxt}>Browse Properties</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -293,222 +284,42 @@ export default function NotificationsPage() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    backgroundColor: "#fff",
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  backButton: {
-    marginRight: 12,
-    padding: 4,
-  },
-  headerTextContainer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginRight: 8,
-  },
-  unreadBadge: {
-    backgroundColor: "#FF3B30",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  unreadBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  markAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  markAllButtonText: {
-    color: "#007AFF",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  filterContainer: {
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  filterTabs: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-  },
-  filterChipActive: {
-    backgroundColor: "#007AFF",
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#666",
-  },
-  filterChipTextActive: {
-    color: "#fff",
-  },
-  notificationsList: {
-    flex: 1,
-    padding: 16,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 80,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#999",
-    marginTop: 16,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: "#bbb",
-    marginTop: 8,
-  },
-  notificationCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  notificationCardUnread: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#007AFF",
-  },
-  notificationIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  notificationContent: {
-    flex: 1,
-  },
-  notificationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  notificationTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#FF3B30",
-    marginLeft: 8,
-  },
-  notificationMessage: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  propertyTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: "flex-start",
-    marginBottom: 8,
-    gap: 4,
-  },
-  propertyTagText: {
-    fontSize: 11,
-    color: "#666",
-    fontWeight: "500",
-  },
-  notificationTimestamp: {
-    fontSize: 12,
-    color: "#999",
-    marginBottom: 8,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#4CAF50",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    gap: 6,
-    marginTop: 4,
-  },
-  actionButtonSecondary: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#007AFF",
-  },
-  actionButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  actionButtonTextSecondary: {
-    color: "#007AFF",
-  },
-  deleteButton: {
-    padding: 8,
-  },
-  footer: {
-    backgroundColor: "#fff",
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    gap: 12,
-  },
-  footerButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 6,
-  },
-  footerButtonText: {
-    color: "#007AFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  container:    { flex: 1, backgroundColor: "#F5F5F5" },
+  header:       { backgroundColor: "#fff", flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E0E0E0", gap: 8 },
+  headerLeft:   { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  headerTitle:  { fontSize: 22, fontWeight: "700", color: "#333" },
+  badge:        { backgroundColor: "#FF3B30", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  badgeText:    { color: "#fff", fontSize: 11, fontWeight: "700" },
+  markAllTxt:   { color: "#007AFF", fontSize: 13, fontWeight: "600" },
+  refreshBtn:   { padding: 6 },
+  filterWrap:   { backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#E0E0E0" },
+  filterRow:    { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  chip:         { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: "#F0F0F0" },
+  chipActive:   { backgroundColor: "#007AFF" },
+  chipTxt:      { fontSize: 13, fontWeight: "600", color: "#666" },
+  chipTxtActive:{ color: "#fff" },
+  list:         { flex: 1, padding: 14 },
+  center:       { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80, gap: 12 },
+  loadingTxt:   { color: "#666", fontSize: 14 },
+  empty:        { alignItems: "center", paddingTop: 80, gap: 8 },
+  emptyTxt:     { fontSize: 18, fontWeight: "600", color: "#999", marginTop: 12 },
+  emptySub:     { fontSize: 14, color: "#bbb" },
+  card:         { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 12, flexDirection: "row", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3, gap: 12 },
+  cardUnread:   { borderLeftWidth: 4, borderLeftColor: "#007AFF" },
+  iconWrap:     { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
+  content:      { flex: 1 },
+  titleRow:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 },
+  title:        { flex: 1, fontSize: 15, fontWeight: "700", color: "#222", lineHeight: 20 },
+  dot:          { width: 8, height: 8, borderRadius: 4, backgroundColor: "#FF3B30", marginTop: 4, marginLeft: 6 },
+  msg:          { fontSize: 13, color: "#555", lineHeight: 19, marginBottom: 8 },
+  metaRow:      { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  typeBadge:    { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  typeBadgeTxt: { fontSize: 11, fontWeight: "700" },
+  time:         { fontSize: 11, color: "#999" },
+  actionBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#007AFF", paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, marginTop: 2 },
+  actionBtnTxt: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  delBtn:       { padding: 6, alignSelf: "flex-start" },
+  footer:       { backgroundColor: "#fff", flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "#E0E0E0", gap: 12 },
+  footerBtn:    { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#F0F0F0", paddingVertical: 12, borderRadius: 8, gap: 6 },
+  footerBtnTxt: { color: "#007AFF", fontSize: 14, fontWeight: "600" },
 });

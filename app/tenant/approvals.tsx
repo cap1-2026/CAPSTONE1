@@ -1,19 +1,15 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Image, Platform, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Alert, Linking, Modal, Platform, ScrollView,
+  StyleSheet, Text, TouchableOpacity, View, Image,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import API_ENDPOINTS from "../../config/api";
 import { UserStorage } from "../../utils/userStorage";
-
-// ─── helpers ───────────────────────────────────────────────────────────────
-function showAlert(title: string, msg?: string) {
-  if (Platform.OS === "web") window.alert(msg ? `${title}\n\n${msg}` : title);
-  else Alert.alert(title, msg);
-}
+import { sendNotification } from "../../utils/notifications";
+import { showAlert } from "../../utils/alerts";
 
 // ─── types ─────────────────────────────────────────────────────────────────
 interface Booking {
@@ -28,44 +24,361 @@ interface Booking {
   status: "pending" | "approved" | "rejected";
   contract_status: "none" | "submitted" | "approved" | "rejected";
   payment_status?: "none" | "paid" | "pending_owner_approval" | "approved";
+  lease_contract_file?: string;
+  tenant_signature?: string;
   created_at: string;
+  property_type?: string;
 }
 
-type PayMethod = "gcash" | "card" | "bank_transfer" | "cash";
+type PayMethod = "paymongo";
 
 interface ContractState {
-  facePhoto: any;
-  idPhoto: any;
-  agreed: boolean;
+  signatureSvg: string;
+  sigCaptured: boolean;
   submitting: boolean;
 }
 
 interface PayState {
   method: PayMethod | null;
-  gcashNumber: string;
-  cardName: string;
-  cardNumber: string;
-  cardExpiry: string;
-  cardCVV: string;
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
+  checkoutUrl: string;
   submitting: boolean;
   done: boolean;
   txId: string;
+  checkoutOpened: boolean;
 }
 
 const defaultContract = (): ContractState => ({
-  facePhoto: null, idPhoto: null, agreed: false, submitting: false,
+  signatureSvg: "", sigCaptured: false, submitting: false,
 });
 const defaultPay = (): PayState => ({
-  method: null, gcashNumber: "", cardName: "", cardNumber: "",
-  cardExpiry: "", cardCVV: "", bankName: "", accountNumber: "",
-  accountName: "", submitting: false, done: false, txId: "",
+  method: null, checkoutUrl: "", submitting: false, done: false, txId: "", checkoutOpened: false,
+});
+
+// ─── SignaturePad component ────────────────────────────────────────────────
+interface SigPoint { x: number; y: number; }
+type SigStroke = SigPoint[];
+
+function buildSvg(strokes: SigStroke[], w = 320, h = 120): string {
+  let paths = "";
+  for (const stroke of strokes) {
+    if (stroke.length < 2) continue;
+    let d = `M ${stroke[0].x.toFixed(1)} ${stroke[0].y.toFixed(1)}`;
+    for (let i = 1; i < stroke.length; i++) {
+      d += ` L ${stroke[i].x.toFixed(1)} ${stroke[i].y.toFixed(1)}`;
+    }
+    paths += `<path d="${d}" stroke="#1a1a1a" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><rect width="${w}" height="${h}" fill="white"/>${paths}</svg>`;
+}
+
+function SignaturePad({ onSave, scrollRef }: { onSave: (svg: string) => void; scrollRef?: React.RefObject<any> }) {
+
+  // ── WEB: raw <canvas> + imperative drawing ──────────────────────────────
+  // We use a real HTML <canvas> element with raw DOM pointer events instead
+  // of React Native View-based rendering. Canvas drawing is persistent and
+  // imperative — once a stroke is drawn it stays until explicitly cleared,
+  // completely bypassing React reconciliation and state-timing issues that
+  // caused strokes to vanish on pointer release.
+  const canvasRef    = useRef<any>(null);
+  const webStrokes   = useRef<SigStroke[]>([]);
+  const webCurrent   = useRef<SigPoint[]>([]);
+  const webIsDown    = useRef(false);
+  const [webHasSig, setWebHasSig] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const canvas = canvasRef.current as HTMLCanvasElement | null;
+    if (!canvas) return;
+
+    function pos(e: PointerEvent): SigPoint {
+      const r = canvas!.getBoundingClientRect();
+      return {
+        x: (e.clientX - r.left) * (canvas!.width  / r.width),
+        y: (e.clientY - r.top)  * (canvas!.height / r.height),
+      };
+    }
+
+    function redraw() {
+      const ctx = canvas!.getContext("2d")!;
+      ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+      ctx.strokeStyle = "#1a1a1a";
+      ctx.lineWidth   = 3;
+      ctx.lineCap     = "round";
+      ctx.lineJoin    = "round";
+      const all = [
+        ...webStrokes.current,
+        ...(webCurrent.current.length > 1 ? [webCurrent.current] : []),
+      ];
+      for (const stroke of all) {
+        if (stroke.length < 2) continue;
+        ctx.beginPath();
+        ctx.moveTo(stroke[0].x, stroke[0].y);
+        for (let i = 1; i < stroke.length; i++) ctx.lineTo(stroke[i].x, stroke[i].y);
+        ctx.stroke();
+      }
+    }
+
+    function onDown(e: PointerEvent) {
+      e.preventDefault();
+      canvas!.setPointerCapture(e.pointerId);
+      webIsDown.current   = true;
+      webCurrent.current  = [pos(e)];
+      redraw();
+    }
+    function onMove(e: PointerEvent) {
+      if (!webIsDown.current) return;
+      webCurrent.current.push(pos(e));
+      redraw();
+      if (webCurrent.current.length > 1) setWebHasSig(true);
+    }
+    function onUp() {
+      if (!webIsDown.current) return;
+      webIsDown.current = false;
+      if (webCurrent.current.length > 1) {
+        // Commit stroke to the ref — canvas already shows it, no redraw needed
+        webStrokes.current = [...webStrokes.current, [...webCurrent.current]];
+        setWebHasSig(true);
+      }
+      webCurrent.current = [];
+      // DO NOT redraw here — the canvas already has the pixels; redrawing
+      // would clear and re-draw, causing the brief-disappear flash on release.
+    }
+
+    canvas.addEventListener("pointerdown",   onDown);
+    canvas.addEventListener("pointermove",   onMove);
+    canvas.addEventListener("pointerup",     onUp);
+    canvas.addEventListener("pointercancel", onUp);
+    canvas.style.touchAction = "none";
+    canvas.style.cursor      = "crosshair";
+    canvas.style.userSelect  = "none";
+    canvas.style.display     = "block";
+
+    return () => {
+      canvas.removeEventListener("pointerdown",   onDown);
+      canvas.removeEventListener("pointermove",   onMove);
+      canvas.removeEventListener("pointerup",     onUp);
+      canvas.removeEventListener("pointercancel", onUp);
+    };
+  }, []); // mount once — refs stay stable
+
+  // ── NATIVE: React Native built-in Responder API ─────────────────────────
+  // Uses RN's lowest-level touch API — works on every device, inside any
+  // Modal, no external dependencies.
+  // onStartShouldSetResponder: () => true  → this View claims every touch
+  //   that begins inside it, so the parent ScrollView cannot scroll.
+  // locationX/Y are always relative to this View → always accurate.
+  const nativeStrokes = useRef<SigStroke[]>([]);
+  const currentStroke = useRef<SigPoint[]>([]);
+  const [, setRender] = useState(0);
+
+  const rafRef         = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  // Tracks the real pixel size of the canvas View so we can clamp coordinates.
+  // Updated by onLayout (safe: overflow:"hidden" is removed, so onLayout only
+  // fires on genuine size changes like rotation — NOT on child View additions).
+  const canvasSize     = useRef({ width: 320, height: 120 });
+
+  // Stable handlers stored in a ref — created once on mount, never recreated.
+  // All mutable state is accessed through refs so stale-closure is never an issue.
+  //
+  // KEY DESIGN DECISIONS:
+  //  • No onMoveShouldSetResponder — that fires when a touch is ALREADY MOVING
+  //    and the canvas is not yet the responder (e.g. the user is scrolling and
+  //    their finger passes over the canvas). Returning true would steal the
+  //    in-progress scroll and start drawing from wherever the finger currently
+  //    is, producing the phantom "upward line / curve" the user reported.
+  //    The canvas should only respond to touches that BEGIN inside it.
+  //  • onStartShouldSetResponder: () => true — canvas claims every touch that
+  //    STARTS within it (deepest-View-wins in the bubble phase), preventing the
+  //    parent ScrollView from scrolling while drawing.
+  //  • onResponderGrant starts EMPTY — grant-phase coords can be (0,0) on some
+  //    Android devices; first reliable point comes from onResponderMove.
+  const nativeHandlersRef = useRef<any>(null);
+  if (nativeHandlersRef.current === null) {
+    nativeHandlersRef.current = {
+      onStartShouldSetResponder: () => true,
+
+      onResponderGrant: () => {
+        scrollRef?.current?.setNativeProps?.({ scrollEnabled: false });
+        currentStroke.current = [];
+      },
+
+      onResponderMove: (e: any) => {
+        // locationX/Y is relative to the responder View (the canvas) — always
+        // correct when children have pointerEvents:"none" and there is no
+        // capture-phase interception (no onStartShouldSetResponderCapture).
+        // Clamp to canvas bounds so a finger at the edge never produces a point
+        // outside the View — eliminates the "burst outside the box" artefact.
+        const x = Math.max(0, Math.min(e.nativeEvent.locationX, canvasSize.current.width));
+        const y = Math.max(0, Math.min(e.nativeEvent.locationY, canvasSize.current.height));
+        currentStroke.current.push({ x, y });
+        if (rafRef.current === null) {
+          rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            setRender((n) => n + 1);
+          });
+        }
+      },
+
+      onResponderRelease: () => {
+        scrollRef?.current?.setNativeProps?.({ scrollEnabled: true });
+        if (currentStroke.current.length > 1) {
+          nativeStrokes.current = [...nativeStrokes.current, [...currentStroke.current]];
+        }
+        currentStroke.current = [];
+        setRender((n) => n + 1);
+      },
+
+      onResponderTerminate: () => {
+        // Fires when an external event (notification, system gesture) interrupts
+        // the stroke. Re-enable scroll and discard the partial stroke — the user
+        // can re-draw cleanly rather than seeing a half-finished artefact.
+        scrollRef?.current?.setNativeProps?.({ scrollEnabled: true });
+        currentStroke.current = [];
+        setRender((n) => n + 1);
+      },
+    };
+  }
+  const nativeHandlers = nativeHandlersRef.current;
+
+  // ── clear / save ────────────────────────────────────────────────────────
+  function clear() {
+    if (Platform.OS === "web") {
+      webStrokes.current = [];
+      webCurrent.current = [];
+      webIsDown.current  = false;
+      setWebHasSig(false);
+      const canvas = canvasRef.current as HTMLCanvasElement | null;
+      if (canvas) {
+        const ctx = canvas.getContext("2d")!;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    } else {
+      nativeStrokes.current = [];
+      currentStroke.current = [];
+      setRender((n) => n + 1);
+    }
+    onSave("");
+  }
+
+  function save() {
+    const all = Platform.OS === "web" ? webStrokes.current : nativeStrokes.current;
+    if (all.length === 0) return;
+    const { width, height } = canvasSize.current;
+    onSave(buildSvg(all, Math.round(width), Math.round(height)));
+  }
+
+  const nativeHasSig    = nativeStrokes.current.length > 0 || currentStroke.current.length > 1;
+  const hasSig          = Platform.OS === "web" ? webHasSig : nativeHasSig;
+  const nativeAllRender = [
+    ...nativeStrokes.current,
+    currentStroke.current.length > 1 ? currentStroke.current : [],
+  ];
+
+  return (
+    <View>
+      {Platform.OS === "web" ? (
+        /* ── web canvas ── */
+        <View style={SIG.canvas}>
+          {/* @ts-ignore – raw HTML <canvas> element, valid on web */}
+          <canvas
+            ref={canvasRef}
+            width={640}
+            height={180}
+            style={{ width: "100%", height: 120, borderRadius: 10 } as any}
+          />
+          {!webHasSig && (
+            <Text style={[SIG.placeholder, { pointerEvents: "none" } as any]}>
+              Sign here using your mouse
+            </Text>
+          )}
+        </View>
+      ) : (
+        /* ── native view ── */
+        <View
+          style={SIG.canvas}
+          collapsable={false}
+          onLayout={(e) => {
+            // Record real pixel dimensions for coordinate clamping.
+            // Safe: overflow:"hidden" is NOT set on native, so onLayout only
+            // fires on genuine View-size changes (mount, rotation), never when
+            // child line-segment Views are added during drawing.
+            canvasSize.current = {
+              width:  e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            };
+          }}
+          {...nativeHandlers}
+        >
+          <Text style={[SIG.placeholder, { pointerEvents: "none" } as any]}>
+            {nativeHasSig ? "" : "Sign here using your finger"}
+          </Text>
+          {nativeAllRender.map((stroke, si) =>
+            stroke.map((pt, pi) => {
+              if (pi === 0) return null;
+              const prev  = stroke[pi - 1];
+              const dx    = pt.x - prev.x;
+              const dy    = pt.y - prev.y;
+              const len   = Math.sqrt(dx * dx + dy * dy);
+              if (len < 0.5) return null;
+              const angle = Math.atan2(dy, dx);
+              const cx = (prev.x + pt.x) / 2;
+              const cy = (prev.y + pt.y) / 2;
+              return (
+                <View
+                  key={`${si}-${pi}`}
+                  style={{
+                    position:        "absolute",
+                    width:           len,
+                    height:          2.5,
+                    backgroundColor: "#1a1a1a",
+                    borderRadius:    1.25,
+                    left:            cx - len / 2,
+                    top:             cy - 1.25,
+                    transform:       [{ rotate: `${angle}rad` }],
+                    pointerEvents:   "none",
+                  } as any}
+                />
+              );
+            })
+          )}
+        </View>
+      )}
+      <View style={SIG.row}>
+        <TouchableOpacity style={SIG.clearBtn} onPress={clear}>
+          <Ionicons name="refresh-outline" size={16} color="#666" />
+          <Text style={SIG.clearBtnText}>Clear</Text>
+        </TouchableOpacity>
+        {hasSig ? (
+          <TouchableOpacity style={SIG.saveBtn} onPress={save}>
+            <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+            <Text style={SIG.saveBtnText}>Confirm Signature</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const SIG = StyleSheet.create({
+  canvas: {
+    width: "100%", height: 120, backgroundColor: "#F8FAFC", borderRadius: 10,
+    borderWidth: 1.5, borderColor: "#CBD5E1", borderStyle: "dashed",
+    // overflow:"hidden" is intentionally omitted for native:
+    //   On Android it causes layout re-measurement every time a child line-segment
+    //   View is added, producing onLayout loops and coordinate jumps mid-stroke.
+    //   On web it is still needed so the canvas element respects borderRadius.
+    ...Platform.select({ web: { overflow: "hidden" as const, position: "relative" as const } }),
+  },
+  placeholder: { position: "absolute", top: "40%", left: 0, right: 0, textAlign: "center", color: "#94A3B8", fontSize: 13 },
+  row:         { flexDirection: "row", gap: 10, marginTop: 10 },
+  clearBtn:    { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "#CBD5E1", backgroundColor: "#F8FAFC" },
+  clearBtnText:{ fontSize: 14, color: "#666" },
+  saveBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderRadius: 8, backgroundColor: "#1D4ED8" },
+  saveBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
 });
 
 // ─── step resolution ───────────────────────────────────────────────────────
-type StepId = 0 | 1 | 2 | 3; // 0=Booking, 1=Contract, 2=Payment, 3=QR
+type StepId = 0 | 1 | 2 | 3;
 
 function activeStep(b: Booking, payDone: boolean): StepId {
   if (b.status !== "approved") return 0;
@@ -85,6 +398,8 @@ export default function TenantFlowPage() {
 
   const [contracts, setContracts] = useState<Record<number, ContractState>>({});
   const [payments,  setPayments]  = useState<Record<number, PayState>>({});
+  const [contractModalBookingId, setContractModalBookingId] = useState<number | null>(null);
+  const modalScrollRef = useRef<any>(null);
 
   const fetchBookings = useCallback(async (uid: number) => {
     try {
@@ -123,44 +438,24 @@ export default function TenantFlowPage() {
     }));
   }
 
-  async function pickPhoto(bookingId: number, type: "face" | "id") {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showAlert("Permission needed", "Allow photo access."); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images" as any, quality: 0.8 });
-    if (!result.canceled && result.assets[0]) {
-      setContractField(bookingId, type === "face" ? "facePhoto" : "idPhoto", result.assets[0]);
-    }
-  }
-
-  async function appendPhoto(form: FormData, key: string, photo: any) {
-    if (!photo) return;
-    if (Platform.OS === "web") {
-      const blob = await fetch(photo.uri).then((r) => r.blob());
-      form.append(key, blob, `${key}_${Date.now()}.jpg`);
-    } else {
-      (form as any).append(key, { uri: photo.uri, name: photo.fileName || `${key}.jpg`, type: photo.mimeType || "image/jpeg" });
-    }
-  }
-
-  async function submitContract(b: Booking) {
+  async function submitContract(b: Booking, onSuccess?: () => void) {
     const c = getContract(b.id);
-    if (!c.agreed)     { showAlert("Agreement Required", "Please agree to the contract terms."); return; }
-    if (!c.facePhoto)  { showAlert("Photo Required", "Upload a selfie for identity verification."); return; }
-    if (!c.idPhoto)    { showAlert("ID Required", "Upload a photo of your valid ID."); return; }
+    if (!c.signatureSvg) { showAlert("Signature Required", "Please draw your signature before submitting."); return; }
 
     setContractField(b.id, "submitting", true);
     try {
       const form = new FormData();
       form.append("booking_id", String(b.id));
-      await appendPhoto(form, "face_photo", c.facePhoto);
-      await appendPhoto(form, "id_photo",   c.idPhoto);
+      form.append("tenant_id",  String(userId));
+      form.append("signature_data", c.signatureSvg);
       const res  = await fetch(API_ENDPOINTS.SUBMIT_CONTRACT, { method: "POST", body: form });
       const data = await res.json();
       if (data.status === "success") {
         setBookings((prev) =>
           prev.map((bk) => bk.id === b.id ? { ...bk, contract_status: "submitted" } : bk),
         );
-        showAlert("Submitted!", "Contract sent for owner review.");
+        onSuccess?.();
+        showAlert("Submitted!", "Your digital signature has been sent for owner review.");
       } else {
         showAlert("Failed", data.message || "Please try again.");
       }
@@ -183,33 +478,102 @@ export default function TenantFlowPage() {
   }
 
   async function submitPayment(b: Booking) {
-    const p = getPayment(b.id);
-    if (!p.method) { showAlert("Select Method", "Choose a payment method."); return; }
     const deposit = Number(b.property_deposit) || Number(b.property_price);
     setPayField(b.id, "submitting", true);
+
+    // BYPASS MODE - Skip PayMongo entirely for testing
     try {
-      const res = await fetch(API_ENDPOINTS.PAYMENT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          booking_id: b.id,
-          amount: deposit,
-          method: p.method,
-          type: "security_deposit",
-          escrow: true,
-        }),
-      });
-      const data = await res.json();
-      const txId = data.transaction_id ?? `ESC-${Date.now()}`;
+      console.log('BYPASS: Simulating successful payment for booking:', b.id);
+
+      // Simulate a short delay like a real API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Create fake successful response
+      const fakePaymentData = {
+        status: "success",
+        checkout_url: "https://fake-checkout.test/success",
+        session_id: `fake_${Date.now()}`,
+        transaction_id: `BYPASS_PM_${b.id}_${Date.now()}`,
+        message: "Bypass payment completed - QR access pass ready!",
+        is_mock: true,
+        fake_mode: true
+      };
+
+      console.log('BYPASS: Fake payment success:', fakePaymentData);
+
+      // Store fake checkout URL and mark method
       setPayments((prev) => ({
         ...prev,
-        [b.id]: { ...(prev[b.id] ?? defaultPay()), submitting: false, done: true, txId },
+        [b.id]: {
+          ...(prev[b.id] ?? defaultPay()),
+          submitting: false,
+          method: "bypass_paymongo",
+          checkoutUrl: fakePaymentData.checkout_url,
+          done: true // Auto-complete bypass payment
+        },
+      }));
+
+      // Automatically mark as completed for testing
+      const txId = fakePaymentData.transaction_id;
+      await recordLocalPayment(b, txId);
+
+      // Success message - QR will auto-show due to payment completion
+      setTimeout(() => {
+        showAlert("🎉 Payment Complete!", "Payment bypassed successfully! Your digital QR access pass is now ready. Scroll down to Step 4 to see your QR code!");
+      }, 500);
+
+    } catch (error) {
+      console.error('Bypass payment error:', error);
+      showAlert("Bypass Error", `Even bypass failed: ${error.message}`);
+      setPayField(b.id, "submitting", false);
+    }
+  }
+
+  async function openPayMongoCheckout(b: Booking) {
+    const p   = getPayment(b.id);
+    const url = p.checkoutUrl;
+    if (!url) return;
+    try {
+      await Linking.openURL(url);
+      setPayField(b.id, "checkoutOpened", true);
+    } catch {
+      showAlert("Error", "Could not open the payment page. Please try again.");
+    }
+  }
+
+  async function confirmPayMongoPayment(b: Booking) {
+    const txId = getPayment(b.id).txId || `PM-${Date.now()}`;
+    await recordLocalPayment(b, txId);
+  }
+
+  async function recordLocalPayment(b: Booking, txId: string) {
+    const deposit = Number(b.property_deposit) || Number(b.property_price);
+    try {
+      const res  = await fetch(API_ENDPOINTS.PAYMENT, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ booking_id: b.id, amount: deposit, method: "paymongo", type: "security_deposit", escrow: true, transaction_id: txId }),
+      });
+      const data = await res.json();
+      const finalTxId = data.transaction_id ?? txId;
+      setPayments((prev) => ({
+        ...prev,
+        [b.id]: { ...(prev[b.id] ?? defaultPay()), submitting: false, done: true, txId: finalTxId },
       }));
       setBookings((prev) =>
         prev.map((bk) => bk.id === b.id ? { ...bk, payment_status: "pending_owner_approval" } : bk),
       );
+      // Notify tenant
+      if (userId) {
+        sendNotification(
+          userId, "tenant", "payment",
+          "Payment Submitted!",
+          `Your security deposit of ₱${deposit.toLocaleString()} for "${b.property_name}" has been submitted via PayMongo and is awaiting owner approval. Ref: ${finalTxId}`,
+          b.id, "approval",
+        );
+      }
     } catch {
-      showAlert("Connection Error", "Payment failed. Try again.");
+      showAlert("Record Error", "Payment may have succeeded but could not be recorded. Please contact support.");
       setPayField(b.id, "submitting", false);
     }
   }
@@ -323,7 +687,7 @@ export default function TenantFlowPage() {
           {isReview && (
             <View style={S.reviewBox}>
               <ActivityIndicator size="small" color="#D97706" />
-              <Text style={S.reviewText}>Contract submitted — owner is reviewing your photos.</Text>
+              <Text style={S.reviewText}>Signature submitted — owner is reviewing your digital signature.</Text>
             </View>
           )}
 
@@ -335,101 +699,214 @@ export default function TenantFlowPage() {
           )}
 
           {isActive && cs === "none" && (
-            <>
-              {/* Contract Summary */}
-              <View style={S.contractSummary}>
-                <Text style={S.contractSummaryTitle}>RESIDENTIAL LEASE AGREEMENT</Text>
-                <Text style={S.contractRef}>Ref: PF-{String(b.id).padStart(6, "0")}</Text>
-                <View style={S.summaryRow}><Text style={S.sumLabel}>Tenant</Text><Text style={S.sumValue}>{tenantName}</Text></View>
-                <View style={S.summaryRow}><Text style={S.sumLabel}>Property</Text><Text style={S.sumValue}>{b.property_name}</Text></View>
-                <View style={S.summaryRow}><Text style={S.sumLabel}>Monthly Rent</Text><Text style={[S.sumValue, { color: "#059669" }]}>₱{Number(b.property_price).toLocaleString()}</Text></View>
-                <View style={S.summaryRow}><Text style={S.sumLabel}>Move-In</Text><Text style={S.sumValue}>{b.move_in}</Text></View>
-                <View style={S.summaryRow}><Text style={S.sumLabel}>Duration</Text><Text style={S.sumValue}>{b.lease_duration}</Text></View>
-              </View>
-
-              {/* Terms notice */}
-              <View style={S.termsNotice}>
-                <MaterialCommunityIcons name="file-document-outline" size={15} color="#2563EB" />
-                <Text style={S.termsNoticeText}>
-                  By submitting, you agree to: pay rent by the 1st of each month, maintain the property, and follow a 30-day
-                  notice for termination. Full terms apply per PadFinder's Rental Agreement policy.
-                </Text>
-              </View>
-
-              {/* Identity Verification */}
-              <Text style={S.photoSectionTitle}>IDENTITY VERIFICATION</Text>
-
-              <Text style={S.photoLabel}>Selfie / Face Photo <Text style={{ color: "#DC2626" }}>*</Text></Text>
-              <TouchableOpacity style={[S.photoBox, c.facePhoto && S.photoBoxDone]} onPress={() => pickPhoto(b.id, "face")}>
-                {c.facePhoto ? (
-                  <View style={S.photoRow}>
-                    <Image source={{ uri: c.facePhoto.uri }} style={S.photoThumb} />
-                    <View>
-                      <Text style={S.photoOk}>✓ Face Photo Uploaded</Text>
-                      <Text style={S.photoChange}>Tap to change</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <>
-                    <Ionicons name="person-circle-outline" size={26} color="#94A3B8" />
-                    <Text style={S.photoHint}>Tap to upload selfie</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <Text style={[S.photoLabel, { marginTop: 10 }]}>Valid Government ID <Text style={{ color: "#DC2626" }}>*</Text></Text>
-              <TouchableOpacity style={[S.photoBox, c.idPhoto && S.photoBoxDone]} onPress={() => pickPhoto(b.id, "id")}>
-                {c.idPhoto ? (
-                  <View style={S.photoRow}>
-                    <Image source={{ uri: c.idPhoto.uri }} style={S.photoThumb} />
-                    <View>
-                      <Text style={S.photoOk}>✓ ID Photo Uploaded</Text>
-                      <Text style={S.photoChange}>Tap to change</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <>
-                    <Ionicons name="card-outline" size={26} color="#94A3B8" />
-                    <Text style={S.photoHint}>Passport, Driver's License, PhilSys…</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              {/* Agreement */}
-              <TouchableOpacity
-                style={S.agreeRow}
-                onPress={() => setContractField(b.id, "agreed", !c.agreed)}
-                activeOpacity={0.7}
-              >
-                <View style={[S.checkbox, c.agreed && S.checkboxOn]}>
-                  {c.agreed && <Ionicons name="checkmark" size={13} color="#fff" />}
-                </View>
-                <Text style={S.agreeText}>
-                  I, <Text style={{ fontWeight: "700" }}>{tenantName}</Text>, have read and agree to all lease terms.
-                </Text>
-              </TouchableOpacity>
-
-              {/* Submit */}
-              <TouchableOpacity
-                style={[S.cta, (!c.agreed || !c.facePhoto || !c.idPhoto) && S.ctaDim]}
-                onPress={() => submitContract(b)}
-                disabled={c.submitting}
-              >
-                {c.submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="send" size={16} color="#fff" />
-                    <Text style={S.ctaText}>Submit Contract for Review</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity
+              style={S.signContractBtn}
+              onPress={() => setContractModalBookingId(b.id)}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons name="file-sign" size={18} color="#fff" />
+              <Text style={S.signContractBtnText}>View & Sign Lease Contract</Text>
+              <Ionicons name="chevron-forward" size={16} color="#fff" />
+            </TouchableOpacity>
           )}
         </View>
       </View>
     );
   }
+
+  function renderContractModal(b: Booking) {
+    const c = getContract(b.id);
+    const today = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
+    const ref   = `PF-${String(b.id).padStart(6, "0")}`;
+    const rent  = Number(b.property_price).toLocaleString();
+    const dep   = Number(b.property_deposit || b.property_price).toLocaleString();
+
+    const isTransient = (b.property_type ?? "").toLowerCase() === "transient";
+
+    const clauses: [string, string][] = [
+      ["1. RENTAL PAYMENT",
+        `Monthly rent of ₱${rent} is due on or before the 1st of each month. A grace period of five (5) days is provided. Payments after the grace period are subject to a ₱200/day late fee.`],
+      ["2. SECURITY DEPOSIT",
+        `A deposit of ₱${dep} is held in escrow. Returned within 30 days after vacating, less any deductions for damages beyond normal wear and tear.`],
+      ["3. USE OF PREMISES",
+        `The property shall be used exclusively as a private residential dwelling for a maximum of ${b.occupants} occupant(s). Commercial activities and subletting are strictly prohibited without written consent from the LESSOR. Any unauthorized use may result in immediate termination of this agreement.`],
+      ["4. MAINTENANCE & REPAIRS",
+        "The LESSEE shall keep the property clean and in good condition throughout the duration of the tenancy. Damage caused by the LESSEE's negligence shall be repaired at the LESSEE's expense. Normal wear and tear is accepted and shall not be charged against the security deposit."],
+      ["5. ALTERATIONS",
+        "The LESSEE shall not make any structural alterations or modifications to the property without prior written consent from the LESSOR. Any approved alterations shall become part of the property and shall not be removed upon vacating unless otherwise agreed in writing."],
+      ["6. TERMINATION",
+        "Either party may terminate this agreement with a minimum of 30 days written notice prior to the intended date of termination. Early termination by the LESSEE without proper notice may result in forfeiture of the security deposit. The LESSOR reserves the right to terminate this agreement immediately in cases of material breach by the LESSEE."],
+      ["7. COMPLIANCE",
+        "The LESSEE shall comply with all applicable laws, local ordinances, and property rules throughout the lease period. Illegal activities on the premises are grounds for immediate termination of this agreement. The LESSEE shall also respect the rights and comfort of neighboring tenants and residents."],
+    ];
+
+    return (
+      <Modal
+        visible={contractModalBookingId === b.id}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setContractModalBookingId(null)}
+      >
+        <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={CM.root}>
+
+          {/* ── Top bar ── */}
+          <View style={CM.topBar}>
+            <View style={{ flex: 1 }}>
+              <Text style={CM.topBarTitle}>Lease Agreement</Text>
+              <Text style={CM.topBarSub}>{ref} • {today}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setContractModalBookingId(null)} style={CM.closeBtn}>
+              <Ionicons name="close" size={22} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView ref={modalScrollRef} style={CM.scroll} contentContainerStyle={CM.scrollContent} showsVerticalScrollIndicator={false}>
+
+            {/* ── Contract document ── */}
+            <View style={CM.contractDoc}>
+
+              {/* Header */}
+              <View style={CM.contractHeader}>
+                <Text style={CM.contractHeaderTitle}>LEASE AGREEMENT</Text>
+                <Text style={CM.contractHeaderRef}>{ref}</Text>
+                <Text style={CM.contractHeaderDate}>{today}</Text>
+              </View>
+
+              {/* Preamble */}
+              <Text style={CM.contractPreamble}>
+                This Lease Agreement (the <Text style={CM.contractBold}>"Agreement"</Text>) is entered into on{" "}
+                <Text style={CM.contractBold}>{today}</Text> between the property owner{" "}
+                (<Text style={CM.contractBold}>"LESSOR"</Text>) and the undersigned tenant{" "}
+                (<Text style={CM.contractBold}>"LESSEE"</Text>), under the terms and conditions set forth herein.
+              </Text>
+
+              {/* Section: Parties */}
+              <View style={CM.contractSection}>
+                <Text style={CM.contractSectionTitle}>PARTIES TO THE AGREEMENT</Text>
+                <View style={CM.contractFieldRow}>
+                  <Text style={CM.contractFieldLabel}>LESSEE (Tenant)</Text>
+                  <Text style={CM.contractFieldValue}>{tenantName}</Text>
+                </View>
+                <View style={CM.contractFieldRow}>
+                  <Text style={CM.contractFieldLabel}>Property Name</Text>
+                  <Text style={CM.contractFieldValue}>{b.property_name}</Text>
+                </View>
+              </View>
+
+              {/* Section: Property */}
+              <View style={CM.contractSection}>
+                <Text style={CM.contractSectionTitle}>SUBJECT PROPERTY</Text>
+                <View style={CM.contractFieldRow}>
+                  <Text style={CM.contractFieldLabel}>Property Name</Text>
+                  <Text style={CM.contractFieldValue}>{b.property_name}</Text>
+                </View>
+                <View style={CM.contractFieldRow}>
+                  <Text style={CM.contractFieldLabel}>Address</Text>
+                  <Text style={CM.contractFieldValue}>{b.property_address}</Text>
+                </View>
+              </View>
+
+              {/* Section: Terms */}
+              <View style={CM.contractSection}>
+                <Text style={CM.contractSectionTitle}>LEASE TERMS</Text>
+                {([
+                  ["Move-in Date",    b.move_in],
+                  ["Lease Duration",  b.lease_duration],
+                  ["Monthly Rent",    `₱${rent}`],
+                  ["Security Deposit",`₱${dep}`],
+                  ["No. of Occupants",`${b.occupants} person(s)`],
+                ] as [string, string][]).map(([label, value]) => (
+                  <View key={label} style={CM.contractFieldRow}>
+                    <Text style={CM.contractFieldLabel}>{label}</Text>
+                    <Text style={[CM.contractFieldValue, CM.contractBold]}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Section: T&C — hidden for Transient properties */}
+              {!isTransient && (
+              <View style={CM.contractSection}>
+                <Text style={CM.contractSectionTitle}>TERMS AND CONDITIONS</Text>
+                {clauses.map(([title, body]) => (
+                  <View key={title} style={CM.contractClause}>
+                    <Text style={CM.clauseTitle}>{title}</Text>
+                    <Text style={CM.clauseBody}>{body}</Text>
+                  </View>
+                ))}
+              </View>
+              )}
+
+              {/* Acknowledgement */}
+              <Text style={[CM.contractPreamble, { marginTop: 10, borderTopWidth: 1, borderTopColor: "#E2E8F0", paddingTop: 12 }]}>
+                {isTransient
+                  ? "By affixing their digital signature below, the LESSEE confirms their intent to occupy the property during the agreed period and agrees to the house rules and check-in/check-out conditions of the LESSOR."
+                  : "By affixing their digital signature below, the LESSEE confirms they have read, understood, and voluntarily agreed to all terms and conditions of this Lease Agreement."}
+              </Text>
+            </View>
+
+            <View style={CM.divider} />
+
+            {/* ── Digital Signature ── */}
+            <View style={CM.sectionHeaderRow}>
+              <MaterialCommunityIcons name="pencil-outline" size={16} color="#1D4ED8" />
+              <Text style={CM.sectionHeaderText}>LESSEE'S DIGITAL SIGNATURE</Text>
+            </View>
+            <Text style={CM.introText}>
+              Draw your signature below using your finger. This legally confirms your agreement to all terms in the contract above.
+            </Text>
+
+            {c.sigCaptured ? (
+              <View style={CM.sigConfirmedBox}>
+                <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
+                <Text style={CM.sigConfirmedText}>Signature captured! You may now submit.</Text>
+                <TouchableOpacity onPress={() => {
+                  setContractField(b.id, "sigCaptured", false);
+                  setContractField(b.id, "signatureSvg", "");
+                }}>
+                  <Text style={{ fontSize: 12, color: "#007AFF", marginTop: 4 }}>Re-draw signature</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <SignaturePad scrollRef={modalScrollRef} onSave={(svg) => {
+                if (svg) {
+                  setContractField(b.id, "signatureSvg", svg);
+                  setContractField(b.id, "sigCaptured", true);
+                } else {
+                  setContractField(b.id, "signatureSvg", "");
+                  setContractField(b.id, "sigCaptured", false);
+                }
+              }} />
+            )}
+
+            {/* ── Submit ── */}
+            <TouchableOpacity
+              style={[CM.submitBtn, (!c.sigCaptured || c.submitting) && CM.submitBtnDim]}
+              onPress={() => submitContract(b, () => setContractModalBookingId(null))}
+              disabled={c.submitting || !c.sigCaptured}
+              activeOpacity={0.85}
+            >
+              {c.submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="send" size={18} color="#fff" />
+                  <Text style={CM.submitBtnText}>Submit Signed Contract</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <Text style={CM.disclaimer}>
+              Your digital signature is legally binding and confirms your agreement to the lease terms above. The signed contract will be sent to the property owner for final review and approval.
+            </Text>
+
+          </ScrollView>
+        </View>
+        </GestureHandlerRootView>
+      </Modal>
+    );
+  }
+
 
   function renderPaymentStep(b: Booking, step: StepId) {
     const isActive = step === 2;
@@ -437,13 +914,6 @@ export default function TenantFlowPage() {
     const p        = getPayment(b.id);
     const isDone   = p.done || ["paid","pending_owner_approval","approved"].includes(b.payment_status ?? "none");
     const deposit  = Number(b.property_deposit) || Number(b.property_price);
-
-    const payMethods: { id: PayMethod; icon: string; label: string; color: string }[] = [
-      { id: "gcash",         icon: "logo-google",       label: "GCash",         color: "#007BFF" },
-      { id: "card",          icon: "card-outline",      label: "Credit / Debit Card", color: "#6366F1" },
-      { id: "bank_transfer", icon: "business-outline",  label: "Bank Transfer", color: "#0F766E" },
-      { id: "cash",          icon: "cash-outline",      label: "Cash on Hand",  color: "#D97706" },
-    ];
 
     return (
       <View style={S.stepRow}>
@@ -467,100 +937,97 @@ export default function TenantFlowPage() {
               <Text style={S.doneText}>
                 {b.payment_status === "approved"
                   ? "Payment approved by owner. Check Step 4 for your QR code."
-                  : "Payment submitted. Waiting for owner to approve..."}
+                  : "Payment submitted via PayMongo. Waiting for owner approval..."}
               </Text>
             </View>
           )}
 
           {isActive && !isDone && (
             <>
+              {/* Amount */}
               <View style={S.amountBox}>
                 <Text style={S.amountLabel}>Security Deposit Due</Text>
                 <Text style={S.amountValue}>₱{deposit.toLocaleString()}</Text>
                 <Text style={S.amountNote}>Held in PadFinder Escrow • Refundable</Text>
               </View>
 
-              <Text style={S.methodTitle}>Select Payment Method</Text>
-              <View style={S.methodGrid}>
-                {payMethods.map((m) => (
-                  <TouchableOpacity
-                    key={m.id}
-                    style={[S.methodBtn, p.method === m.id && { borderColor: m.color, backgroundColor: m.color + "14" }]}
-                    onPress={() => setPayField(b.id, "method", m.id)}
-                  >
-                    <Ionicons name={m.icon as any} size={20} color={p.method === m.id ? m.color : "#64748B"} />
-                    <Text style={[S.methodLabel, p.method === m.id && { color: m.color, fontWeight: "700" }]}>{m.label}</Text>
-                    {p.method === m.id && <Ionicons name="checkmark-circle" size={14} color={m.color} />}
-                  </TouchableOpacity>
-                ))}
+              {/* PayMongo Banner */}
+              <View style={S.paymongoCard}>
+                <View style={S.paymongoHeader}>
+                  <Ionicons name="shield-checkmark" size={22} color="#1D4ED8" />
+                  <Text style={S.paymongoTitle}>Pay via PayMongo</Text>
+                </View>
+                <Text style={S.paymongoDesc}>
+                  Secure online payment powered by PayMongo. Pay using GCash, Credit/Debit Card, or Online Banking — all in one checkout page.
+                </Text>
+                <View style={S.paymongoMethods}>
+                  {[
+                    { icon: "phone-portrait-outline", label: "GCash"        },
+                    { icon: "card-outline",           label: "Card"         },
+                    { icon: "business-outline",       label: "Online Bank"  },
+                  ].map((m) => (
+                    <View key={m.label} style={S.paymongoMethod}>
+                      <Ionicons name={m.icon as any} size={16} color="#1D4ED8" />
+                      <Text style={S.paymongoMethodTxt}>{m.label}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
 
-              {/* Method-specific fields */}
-              {p.method === "gcash" && (
-                <View style={S.fieldGroup}>
-                  <Text style={S.fieldLabel}>GCash Number</Text>
-                  <TextInput style={S.input} placeholder="09XXXXXXXXX" keyboardType="phone-pad"
-                    value={p.gcashNumber} onChangeText={(v) => setPayField(b.id, "gcashNumber", v)} />
-                </View>
+              {/* Step 1: Create Payment Link */}
+              {!p.checkoutUrl && (
+                <TouchableOpacity
+                  style={[S.cta, { backgroundColor: "#1D4ED8" }]}
+                  onPress={() => submitPayment(b)}
+                  disabled={p.submitting}
+                >
+                  {p.submitting ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="lock-closed-outline" size={16} color="#fff" />
+                      <Text style={S.ctaText}>Pay ₱{deposit.toLocaleString()} via PayMongo</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               )}
-              {p.method === "card" && (
-                <View style={S.fieldGroup}>
-                  <Text style={S.fieldLabel}>Cardholder Name</Text>
-                  <TextInput style={S.input} placeholder="Full name on card"
-                    value={p.cardName} onChangeText={(v) => setPayField(b.id, "cardName", v)} />
-                  <Text style={[S.fieldLabel, { marginTop: 8 }]}>Card Number</Text>
-                  <TextInput style={S.input} placeholder="XXXX XXXX XXXX XXXX" keyboardType="number-pad"
-                    value={p.cardNumber} onChangeText={(v) => setPayField(b.id, "cardNumber", v)} />
-                  <View style={S.fieldRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={S.fieldLabel}>Expiry</Text>
-                      <TextInput style={S.input} placeholder="MM/YY"
-                        value={p.cardExpiry} onChangeText={(v) => setPayField(b.id, "cardExpiry", v)} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={S.fieldLabel}>CVV</Text>
-                      <TextInput style={S.input} placeholder="XXX" keyboardType="number-pad" secureTextEntry
-                        value={p.cardCVV} onChangeText={(v) => setPayField(b.id, "cardCVV", v)} />
-                    </View>
+
+              {/* Step 2: Open Checkout URL */}
+              {!!p.checkoutUrl && !p.checkoutOpened && (
+                <View style={{ gap: 10, marginTop: 4 }}>
+                  <View style={S.checkoutReadyBox}>
+                    <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                    <Text style={S.checkoutReadyTxt}>Payment link ready! Tap below to open PayMongo checkout.</Text>
                   </View>
-                </View>
-              )}
-              {p.method === "bank_transfer" && (
-                <View style={S.fieldGroup}>
-                  <Text style={S.fieldLabel}>Bank Name</Text>
-                  <TextInput style={S.input} placeholder="e.g. BDO, BPI, Metrobank"
-                    value={p.bankName} onChangeText={(v) => setPayField(b.id, "bankName", v)} />
-                  <Text style={[S.fieldLabel, { marginTop: 8 }]}>Account Number</Text>
-                  <TextInput style={S.input} placeholder="Account number" keyboardType="number-pad"
-                    value={p.accountNumber} onChangeText={(v) => setPayField(b.id, "accountNumber", v)} />
-                  <Text style={[S.fieldLabel, { marginTop: 8 }]}>Account Name</Text>
-                  <TextInput style={S.input} placeholder="Account holder name"
-                    value={p.accountName} onChangeText={(v) => setPayField(b.id, "accountName", v)} />
-                </View>
-              )}
-              {p.method === "cash" && (
-                <View style={S.cashNotice}>
-                  <Ionicons name="information-circle-outline" size={16} color="#D97706" />
-                  <Text style={S.cashNoticeText}>
-                    Pay ₱{deposit.toLocaleString()} in cash directly to the owner. Click "Confirm Payment" once you have paid.
-                  </Text>
+                  <TouchableOpacity style={[S.cta, { backgroundColor: "#059669" }]} onPress={() => openPayMongoCheckout(b)}>
+                    <Ionicons name="open-outline" size={16} color="#fff" />
+                    <Text style={S.ctaText}>Open PayMongo Checkout</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
-              <TouchableOpacity
-                style={[S.cta, { backgroundColor: "#1D4ED8" }, !p.method && S.ctaDim]}
-                onPress={() => submitPayment(b)}
-                disabled={p.submitting || !p.method}
-              >
-                {p.submitting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="lock-closed-outline" size={16} color="#fff" />
-                    <Text style={S.ctaText}>Confirm Payment — ₱{deposit.toLocaleString()}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+              {/* Step 3: After checkout opened, confirm payment */}
+              {!!p.checkoutUrl && p.checkoutOpened && (
+                <View style={{ gap: 10, marginTop: 4 }}>
+                  <View style={S.checkoutOpenedBox}>
+                    <Ionicons name="information-circle-outline" size={18} color="#D97706" />
+                    <Text style={S.checkoutOpenedTxt}>
+                      Complete the payment on the PayMongo page, then tap "I Have Paid" below.
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={[S.cta, { backgroundColor: "#059669" }]} onPress={() => confirmPayMongoPayment(b)}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                    <Text style={S.ctaText}>I Have Paid — Confirm Payment</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[S.cta, { backgroundColor: "#6366F1" }]}
+                    onPress={() => openPayMongoCheckout(b)}
+                  >
+                    <Ionicons name="open-outline" size={16} color="#fff" />
+                    <Text style={S.ctaText}>Re-open Checkout Page</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </>
           )}
         </View>
@@ -574,71 +1041,122 @@ export default function TenantFlowPage() {
     const payStatus  = b.payment_status ?? "none";
     const isApproved = payStatus === "approved";
     const isPending  = ["paid", "pending_owner_approval"].includes(payStatus);
-    const deposit    = Number(b.property_deposit) || Number(b.property_price);
+
+    // AUTO QR GENERATION: Include bypass/fake payments
+    const hasPayment = isPending || isApproved;
+    const autoQREnabled = hasPayment; // Generate QR automatically for any payment
+
+    const deposit = Number(b.property_deposit) || Number(b.property_price);
 
     const qrData = [
-      "PADFINDER TENANT QR",
-      `Ref: PF-${String(b.id).padStart(6, "0")}`,
+      "PADFINDER TENANT QR ACCESS PASS",
+      `Reference: PF-${String(b.id).padStart(6, "0")}`,
       `Tenant: ${tenantName}`,
       `Property: ${b.property_name}`,
       `Address: ${b.property_address}`,
-      `Deposit Paid: PHP ${deposit.toLocaleString()}`,
-      `Monthly Rent: PHP ${Number(b.property_price).toLocaleString()}`,
-      `Date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`,
-      "Status: VERIFIED",
+      `Security Deposit: ₱${deposit.toLocaleString()}`,
+      `Monthly Rent: ₱${Number(b.property_price).toLocaleString()}`,
+      `Generated: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}`,
+      `Status: ${autoQREnabled ? 'VERIFIED ACCESS' : 'PENDING'}`,
+      `Valid Until: ${new Date(Date.now() + 365*24*60*60*1000).toLocaleDateString("en-US")}`, // 1 year validity
+      "Scan at Property for Instant Access"
     ].join("\n");
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(qrData)}`;
+
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=15&format=png&ecc=M&qzone=2&data=${encodeURIComponent(qrData)}`;
 
     return (
       <View style={[S.stepRow, { marginBottom: 0 }]}>
         <View style={S.stepLeft}>
-          <StepDot active={isActive && !isApproved} done={isApproved} />
+          <StepDot active={isActive && !autoQREnabled} done={autoQREnabled} />
         </View>
-        <View style={[S.stepContent, (isActive || isApproved) && S.stepActive, locked && S.stepLocked, isApproved && S.stepDone, { marginBottom: 0 }]}>
+        <View style={[S.stepContent, (isActive || autoQREnabled) && S.stepActive, locked && S.stepLocked, autoQREnabled && S.stepDone, { marginBottom: 0 }]}>
           <View style={S.stepTitleRow}>
             <Text style={S.stepLabel}>Step 4</Text>
-            {locked    && <View style={[S.badge, S.badgeLocked]}><Text style={S.badgeText}>LOCKED</Text></View>}
-            {isActive && isPending && !isApproved && <View style={[S.badge, S.badgeReview]}><Text style={S.badgeText}>AWAITING</Text></View>}
-            {isApproved && <View style={[S.badge, S.badgeDone]}><Text style={S.badgeText}>ACTIVE</Text></View>}
+            {locked && <View style={[S.badge, S.badgeLocked]}><Text style={S.badgeText}>LOCKED</Text></View>}
+            {isActive && hasPayment && !autoQREnabled && <View style={[S.badge, S.badgeReview]}><Text style={S.badgeText}>GENERATING</Text></View>}
+            {autoQREnabled && <View style={[S.badge, S.badgeQRReady]}><Text style={S.badgeText}>QR READY</Text></View>}
           </View>
-          <Text style={[S.stepTitle, locked && S.stepTitleLocked]}>Tenant QR Code</Text>
+          <Text style={[S.stepTitle, locked && S.stepTitleLocked]}>Digital Access Pass</Text>
 
-          {locked && <Text style={S.lockedNote}>Complete payment to unlock your QR access pass.</Text>}
+          {locked && <Text style={S.lockedNote}>Complete payment to unlock your digital QR access pass.</Text>}
 
-          {isActive && isPending && !isApproved && (
-            <View style={S.qrWaiting}>
-              <ActivityIndicator size="small" color="#D97706" />
-              <Text style={S.qrWaitTitle}>Awaiting Owner Approval</Text>
-              <Text style={S.qrWaitNote}>
-                Your payment has been submitted. The owner will review and approve your payment to generate your QR access pass.
+          {autoQREnabled && (
+            <View style={S.qrReadySection}>
+              {/* QR Success Banner */}
+              <View style={S.qrSuccessBanner}>
+                <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
+                <Text style={S.qrSuccessTitle}>🎉 Access Pass Generated!</Text>
+              </View>
+
+              <Text style={S.qrDescription}>
+                Your digital access pass is ready! Show this QR code at the property for instant verification and access to building amenities.
               </Text>
+
+              {/* QR Code Display */}
+              <View style={S.qrCodeContainer}>
+                <View style={S.qrCodeFrame}>
+                  <Image source={{ uri: qrUrl }} style={S.qrCodeImage} />
+                  {/* Verification badge - positioned at bottom right of QR */}
+                  <View style={[S.qrCodeOverlay, { bottom: 8, right: 8, top: undefined }]}>
+                    <MaterialCommunityIcons name="shield-check" size={24} color="#059669" />
+                  </View>
+                </View>
+
+                <View style={S.qrInfoBox}>
+                  <Text style={S.qrRefText}>Ref: PF-{String(b.id).padStart(6, "0")}</Text>
+                  <Text style={S.qrValidText}>✅ Valid for Property Access</Text>
+                  <Text style={S.qrExpiryText}>Expires: {new Date(Date.now() + 365*24*60*60*1000).toLocaleDateString()}</Text>
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={S.qrActions}>
+                <TouchableOpacity
+                  style={S.qrDownloadBtn}
+                  onPress={() => router.push({
+                    pathname: "/tenant/payment-qr",
+                    params: {
+                      booking_id: b.id,
+                      transaction_id: `QR_${b.id}_${Date.now()}`,
+                      property_name: b.property_name,
+                      property_address: b.property_address,
+                      amount: deposit,
+                      monthly_rent: b.property_price,
+                      payment_method: "bypass_paymongo"
+                    }
+                  } as any)}
+                >
+                  <MaterialCommunityIcons name="download" size={16} color="#2563EB" />
+                  <Text style={S.qrDownloadText}>Download Full Pass</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={S.qrShareBtn}>
+                  <MaterialCommunityIcons name="share-variant" size={16} color="#fff" />
+                  <Text style={S.qrShareText}>Share QR Code</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Usage Instructions */}
+              <View style={S.qrInstructions}>
+                <Text style={S.qrInstructionsTitle}>📱 How to Use Your Access Pass:</Text>
+                <View style={S.instructionsList}>
+                  <Text style={S.instructionItem}>• Present QR code at property entrance</Text>
+                  <Text style={S.instructionItem}>• Security/landlord scans for verification</Text>
+                  <Text style={S.instructionItem}>• Instant access to building amenities</Text>
+                  <Text style={S.instructionItem}>• Keep saved on your phone for quick access</Text>
+                </View>
+              </View>
             </View>
           )}
 
-          {isApproved && (
-            <View style={S.qrApproved}>
-              <View style={S.qrApprovalBanner}>
-                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
-                <Text style={S.qrApprovalText}>Payment approved — present this QR to your owner</Text>
-              </View>
-              <View style={S.qrCard}>
-                <Image source={{ uri: qrUrl }} style={S.qrImage} resizeMode="contain" />
-                <Text style={S.qrCardRef}>PF-{String(b.id).padStart(6, "0")}</Text>
-                <Text style={S.qrCardProp}>{b.property_name}</Text>
-              </View>
-              <View style={S.qrInfoGrid}>
-                {[
-                  { label: "Tenant",       value: tenantName },
-                  { label: "Property",     value: b.property_name },
-                  { label: "Deposit Paid", value: `₱${deposit.toLocaleString()}` },
-                  { label: "Monthly Rent", value: `₱${Number(b.property_price).toLocaleString()}` },
-                ].map((row, i) => (
-                  <View key={i} style={S.qrInfoRow}>
-                    <Text style={S.qrInfoLabel}>{row.label}</Text>
-                    <Text style={S.qrInfoValue}>{row.value}</Text>
-                  </View>
-                ))}
-              </View>
+          {/* Legacy states for non-bypass payments */}
+          {!autoQREnabled && isActive && isPending && (
+            <View style={S.qrWaiting}>
+              <ActivityIndicator size="small" color="#D97706" />
+              <Text style={S.qrWaitTitle}>Generating Access Pass...</Text>
+              <Text style={S.qrWaitNote}>
+                Processing your payment verification. Your QR access pass will be ready momentarily.
+              </Text>
             </View>
           )}
         </View>
@@ -708,6 +1226,12 @@ export default function TenantFlowPage() {
           })
         )}
       </ScrollView>
+
+      {/* Contract Modal — a single modal rendered at the top level so only one is open at a time */}
+      {contractModalBookingId !== null && (() => {
+        const modalBooking = bookings.find((bk) => bk.id === contractModalBookingId);
+        return modalBooking ? renderContractModal(modalBooking) : null;
+      })()}
     </View>
   );
 }
@@ -729,7 +1253,7 @@ const S = StyleSheet.create({
   browseCta:    { backgroundColor: "#1D4ED8", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, marginTop: 8 },
   browseCtaText:{ color: "#fff", fontWeight: "700", fontSize: 14 },
 
-  bookingCard:  { backgroundColor: "#fff", borderRadius: 16, marginBottom: 18, shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, elevation: 3, overflow: "hidden" },
+  bookingCard:  { backgroundColor: "#fff", borderRadius: 16, marginBottom: 18, overflow: "hidden", ...Platform.select({ web: { boxShadow: "0 2px 10px rgba(0,0,0,0.07)" } as any, default: { shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 } }) },
   cardTop:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   cardIcon:     { width: 40, height: 40, borderRadius: 20, backgroundColor: "#EFF6FF", alignItems: "center", justifyContent: "center" },
   cardPropName: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
@@ -747,7 +1271,7 @@ const S = StyleSheet.create({
 
   stepContent:  { flex: 1, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#E2E8F0", backgroundColor: "#FAFAFA", marginBottom: 6 },
   stepDone:     { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
-  stepActive:   { backgroundColor: "#fff", borderColor: "#BFDBFE", shadowColor: "#2563EB", shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
+  stepActive:   { backgroundColor: "#fff", borderColor: "#BFDBFE", ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(37,99,235,0.08)" } as any, default: { shadowColor: "#2563EB", shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 } }) },
   stepLocked:   { backgroundColor: "#F8FAFC", borderColor: "#E2E8F0", opacity: 0.65 },
 
   stepTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
@@ -831,6 +1355,19 @@ const S = StyleSheet.create({
   cashNotice:   { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFFBEB", padding: 12, borderRadius: 8, marginBottom: 12 },
   cashNoticeText: { flex: 1, fontSize: 12, color: "#92400E", lineHeight: 18 },
 
+  // PayMongo styles
+  paymongoCard:       { backgroundColor: "#EFF6FF", borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#BFDBFE" },
+  paymongoHeader:     { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  paymongoTitle:      { fontSize: 16, fontWeight: "700", color: "#1D4ED8" },
+  paymongoDesc:       { fontSize: 13, color: "#374151", lineHeight: 18, marginBottom: 10 },
+  paymongoMethods:    { flexDirection: "row", gap: 12 },
+  paymongoMethod:     { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#fff", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#BFDBFE" },
+  paymongoMethodTxt:  { fontSize: 12, fontWeight: "600", color: "#1D4ED8" },
+  checkoutReadyBox:   { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F0FDF4", borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#BBF7D0" },
+  checkoutReadyTxt:   { flex: 1, fontSize: 13, color: "#065F46", lineHeight: 18 },
+  checkoutOpenedBox:  { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#FFFBEB", borderRadius: 8, padding: 10, borderWidth: 1, borderColor: "#FDE68A" },
+  checkoutOpenedTxt:  { flex: 1, fontSize: 13, color: "#92400E", lineHeight: 18 },
+
   // QR
   qrPlaceholder: { alignItems: "center", paddingVertical: 24, gap: 10 },
   qrTitle:      { fontSize: 16, fontWeight: "700", color: "#94A3B8" },
@@ -856,4 +1393,98 @@ const S = StyleSheet.create({
   qrInfoRow:    { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   qrInfoLabel:  { fontSize: 12, color: "#64748B" },
   qrInfoValue:  { fontSize: 12, fontWeight: "600", color: "#0F172A" },
+
+  // Enhanced QR Ready State
+  badgeQRReady:         { backgroundColor: "#059669" },
+  qrReadySection:       { gap: 14 },
+  qrSuccessBanner:      { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#F0FDF4", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "#BBF7D0" },
+  qrSuccessTitle:       { fontSize: 14, fontWeight: "700", color: "#166534", flex: 1 },
+  qrDescription:        { fontSize: 13, color: "#64748B", lineHeight: 20, textAlign: "center" },
+
+  qrCodeContainer:      { alignItems: "center", gap: 12 },
+  qrCodeFrame:          { backgroundColor: "#fff", borderRadius: 16, padding: 20, borderWidth: 2, borderColor: "#E2E8F0", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
+  qrCodeImage:          { width: 200, height: 200, borderRadius: 8 },
+  qrCodeOverlay:        { position: "absolute" as const, top: 8, right: 8, backgroundColor: "#fff", borderRadius: 12, padding: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
+
+  qrInfoBox:            { alignItems: "center", gap: 2 },
+  qrRefText:            { fontSize: 14, fontWeight: "800", color: "#1D4ED8" },
+  qrValidText:          { fontSize: 12, fontWeight: "600", color: "#059669" },
+  qrExpiryText:         { fontSize: 11, color: "#94A3B8" },
+
+  qrActions:            { flexDirection: "row", gap: 10 },
+  qrDownloadBtn:        { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#EFF6FF", paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: "#BFDBFE" },
+  qrDownloadText:       { fontSize: 13, fontWeight: "600", color: "#2563EB" },
+  qrShareBtn:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#059669", paddingVertical: 12, borderRadius: 10 },
+  qrShareText:          { fontSize: 13, fontWeight: "600", color: "#fff" },
+
+  qrInstructions:       { backgroundColor: "#F8FAFC", borderRadius: 10, padding: 14, borderWidth: 1, borderColor: "#E2E8F0" },
+  qrInstructionsTitle:  { fontSize: 13, fontWeight: "700", color: "#334155", marginBottom: 8 },
+  instructionsList:     { gap: 4 },
+  instructionItem:      { fontSize: 12, color: "#64748B", lineHeight: 18 },
+
+  // Sign Contract button (replaces inline form)
+  signContractBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#1D4ED8", paddingVertical: 14, borderRadius: 12, marginTop: 6 },
+  signContractBtnText: { color: "#fff", fontSize: 14, fontWeight: "700", flex: 1, textAlign: "center" },
+});
+
+const CM = StyleSheet.create({
+  root:             { flex: 1, backgroundColor: "#F8F9FA" },
+  topBar:           { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#E2E8F0", gap: 12 },
+  topBarTitle:      { fontSize: 17, fontWeight: "800", color: "#0F172A" },
+  topBarSub:        { fontSize: 11, color: "#64748B", marginTop: 1 },
+  closeBtn:         { width: 36, height: 36, borderRadius: 10, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" },
+  scroll:           { flex: 1 },
+  scrollContent:    { padding: 16, paddingBottom: 60 },
+
+  // ── Contract document container ──────────────────────────────────────────
+  contractDoc: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 4,
+    overflow: "hidden",
+    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } as any }),
+  },
+
+  // Document header (blue banner)
+  contractHeader:     { backgroundColor: "#1D4ED8", paddingVertical: 20, paddingHorizontal: 20, alignItems: "center", gap: 4 },
+  contractHeaderTitle:{ fontSize: 20, fontWeight: "800", color: "#fff", letterSpacing: 1.5 },
+  contractHeaderRef:  { fontSize: 11, color: "#BFDBFE", fontWeight: "600", marginTop: 2 },
+  contractHeaderDate: { fontSize: 11, color: "#BFDBFE" },
+
+  // Document body text
+  contractPreamble:   { fontSize: 12, color: "#374151", lineHeight: 19, padding: 16, paddingBottom: 4 },
+  contractBold:       { fontWeight: "700", color: "#0F172A" },
+
+  // Sections inside the document
+  contractSection:    { borderTopWidth: 1, borderTopColor: "#F1F5F9", marginHorizontal: 16, paddingVertical: 12 },
+  contractSectionTitle:{ fontSize: 10, fontWeight: "800", color: "#1D4ED8", letterSpacing: 1.2, marginBottom: 10, textTransform: "uppercase" },
+
+  // Field label/value rows
+  contractFieldRow:   { flexDirection: "row", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: "#F8FAFC" },
+  contractFieldLabel: { width: 130, fontSize: 11, color: "#64748B", fontWeight: "600" },
+  contractFieldValue: { flex: 1, fontSize: 12, color: "#0F172A" },
+
+  // T&C clauses
+  contractClause:     { marginBottom: 10 },
+  clauseTitle:        { fontSize: 11, fontWeight: "700", color: "#0F172A", marginBottom: 3 },
+  clauseBody:         { fontSize: 11, color: "#475569", lineHeight: 17 },
+
+  divider:            { height: 1, backgroundColor: "#E2E8F0", marginVertical: 18 },
+
+  // Section header pill (blue)
+  sectionHeaderRow:   { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#EFF6FF", borderRadius: 8, padding: 10, marginBottom: 10, marginTop: 4 },
+  sectionHeaderText:  { fontSize: 11, fontWeight: "800", color: "#1D4ED8", letterSpacing: 1 },
+  introText:          { fontSize: 12, color: "#64748B", marginBottom: 14, lineHeight: 18 },
+
+  // Signature confirmation
+  sigConfirmedBox:    { alignItems: "center", backgroundColor: "#F0FDF4", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#86EFAC", gap: 6 },
+  sigConfirmedText:   { fontSize: 14, fontWeight: "700", color: "#16A34A" },
+
+  // Submit
+  submitBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: "#16A34A", paddingVertical: 16, borderRadius: 14, marginTop: 16 },
+  submitBtnDim:  { backgroundColor: "#94A3B8" },
+  submitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  disclaimer:    { textAlign: "center", fontSize: 11, color: "#94A3B8", marginTop: 14, lineHeight: 17, paddingHorizontal: 10 },
 });
