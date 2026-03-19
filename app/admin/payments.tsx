@@ -14,9 +14,11 @@ interface Payment {
   tenant_email: string;
   owner_name: string;
   property_name: string;
+  property_address?: string;
   amount: number;
   payment_method: string;
   status: "pending" | "completed" | "failed" | "released";
+  escrow_status?: "pending" | "refund_tenant" | "transfer_owner";
   created_at: string;
   reference_number?: string;
 }
@@ -26,8 +28,9 @@ export default function AdminPayments() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<"all" | "pending" | "completed" | "released">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "completed" | "released" | "escrow">("all");
   const [search, setSearch] = useState("");
+  const [escrowLoading, setEscrowLoading] = useState<Record<number, boolean>>({});
 
   const fetchPayments = useCallback(async () => {
     try {
@@ -45,13 +48,53 @@ export default function AdminPayments() {
 
   useEffect(() => { fetchPayments(); }, [fetchPayments]);
 
+  async function handleEscrowDecision(bookingId: number, damage: "yes" | "no") {
+    const action = damage === "no" ? "Refund to Tenant" : "Release to Owner";
+    Alert.alert(
+      "Confirm Escrow Decision",
+      `Are you sure you want to: ${action}?\n\nThis action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          style: damage === "yes" ? "destructive" : "default",
+          onPress: async () => {
+            setEscrowLoading((prev) => ({ ...prev, [bookingId]: true }));
+            try {
+              const res  = await fetch(API_ENDPOINTS.ESCROW_DECISION, {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({ booking_id: bookingId, damage }),
+              });
+              const data = await res.json();
+              if (data.status === "success") {
+                Alert.alert("Done", `Escrow decision recorded: ${data.escrow_status}`);
+                fetchPayments();
+              } else {
+                Alert.alert("Error", data.message || "Failed to update escrow.");
+              }
+            } catch {
+              Alert.alert("Connection Error", "Cannot reach server.");
+            } finally {
+              setEscrowLoading((prev) => ({ ...prev, [bookingId]: false }));
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  const escrowCount = payments.filter(p => (p.escrow_status ?? "pending") === "pending" && (p.status === "completed" || p.status === "pending")).length;
+
   const filtered = payments.filter((p) => {
-    const matchFilter = filter === "all" || p.status === filter;
     const q = search.toLowerCase();
-    return matchFilter && (!q ||
+    const matchSearch = !q ||
       (p.tenant_name || "").toLowerCase().includes(q) ||
       (p.property_name || "").toLowerCase().includes(q) ||
-      (p.reference_number || "").toLowerCase().includes(q));
+      (p.reference_number || "").toLowerCase().includes(q);
+    if (filter === "escrow") return matchSearch && (p.escrow_status ?? "pending") === "pending";
+    const matchFilter = filter === "all" || p.status === filter;
+    return matchFilter && matchSearch;
   });
 
   const totalRevenue = payments.filter(p => p.status === "completed" || p.status === "released")
@@ -103,10 +146,10 @@ export default function AdminPayments() {
           <Text style={[styles.summaryValue, { color: "#D97706" }]}>{pendingCount}</Text>
           <Text style={styles.summaryLabel}>Pending</Text>
         </View>
-        <View style={[styles.summaryCard, { backgroundColor: "#EFF6FF" }]}>
-          <Ionicons name="receipt-outline" size={20} color="#2563EB" />
-          <Text style={[styles.summaryValue, { color: "#2563EB" }]}>{payments.length}</Text>
-          <Text style={styles.summaryLabel}>Total</Text>
+        <View style={[styles.summaryCard, { backgroundColor: "#F5F3FF" }]}>
+          <MaterialCommunityIcons name="safe" size={20} color="#7C3AED" />
+          <Text style={[styles.summaryValue, { color: "#7C3AED" }]}>{escrowCount}</Text>
+          <Text style={styles.summaryLabel}>In Escrow</Text>
         </View>
       </View>
 
@@ -123,10 +166,10 @@ export default function AdminPayments() {
       </View>
 
       <View style={styles.tabsRow}>
-        {(["all", "pending", "completed", "released"] as const).map((f) => (
-          <TouchableOpacity key={f} style={[styles.tab, filter === f && styles.tabActive]} onPress={() => setFilter(f)}>
+        {(["all", "escrow", "pending", "completed", "released"] as const).map((f) => (
+          <TouchableOpacity key={f} style={[styles.tab, filter === f && styles.tabActive, f === "escrow" && filter !== "escrow" && styles.tabEscrow]} onPress={() => setFilter(f)}>
             <Text style={[styles.tabText, filter === f && styles.tabTextActive]}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === "escrow" ? `Escrow${escrowCount > 0 ? ` (${escrowCount})` : ""}` : f.charAt(0).toUpperCase() + f.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -190,6 +233,52 @@ export default function AdminPayments() {
                   <Ionicons name="calendar-outline" size={13} color="#64748B" />
                   <Text style={styles.infoText}>{new Date(item.created_at).toLocaleDateString()}</Text>
                 </View>
+
+                {/* Escrow Section */}
+                {(item.escrow_status ?? "pending") === "pending" ? (
+                  <View style={styles.escrowBox}>
+                    <View style={styles.escrowHeader}>
+                      <MaterialCommunityIcons name="safe" size={16} color="#7C3AED" />
+                      <Text style={styles.escrowTitle}>Escrow Deposit — ₱{Number(item.amount).toLocaleString()}</Text>
+                    </View>
+                    <Text style={styles.escrowDesc}>
+                      As the middleman, decide whether to refund this deposit to the tenant or release it to the owner.
+                    </Text>
+                    <View style={styles.escrowActions}>
+                      <TouchableOpacity
+                        style={[styles.escrowBtn, styles.escrowBtnRefund, escrowLoading[item.booking_id] && styles.escrowBtnDim]}
+                        onPress={() => handleEscrowDecision(item.booking_id, "no")}
+                        disabled={!!escrowLoading[item.booking_id]}
+                      >
+                        {escrowLoading[item.booking_id] ? <ActivityIndicator size="small" color="#fff" /> : (
+                          <>
+                            <Ionicons name="arrow-undo-outline" size={14} color="#fff" />
+                            <Text style={styles.escrowBtnText}>Refund Tenant</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.escrowBtn, styles.escrowBtnRelease, escrowLoading[item.booking_id] && styles.escrowBtnDim]}
+                        onPress={() => handleEscrowDecision(item.booking_id, "yes")}
+                        disabled={!!escrowLoading[item.booking_id]}
+                      >
+                        {escrowLoading[item.booking_id] ? <ActivityIndicator size="small" color="#fff" /> : (
+                          <>
+                            <Ionicons name="arrow-forward-outline" size={14} color="#fff" />
+                            <Text style={styles.escrowBtnText}>Release to Owner</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.escrowDecidedBox, item.escrow_status === "refund_tenant" ? styles.escrowDecidedRefund : styles.escrowDecidedRelease]}>
+                    <Ionicons name="checkmark-circle" size={14} color={item.escrow_status === "refund_tenant" ? "#059669" : "#7C3AED"} />
+                    <Text style={[styles.escrowDecidedText, { color: item.escrow_status === "refund_tenant" ? "#059669" : "#7C3AED" }]}>
+                      {item.escrow_status === "refund_tenant" ? "Refunded to Tenant" : "Released to Owner"}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -235,4 +324,22 @@ const styles = StyleSheet.create({
   infoText: { fontSize: 12, color: "#475569", flex: 1 },
   methodChip: { backgroundColor: "#F1F5F9", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   methodChipText: { fontSize: 10, fontWeight: "700", color: "#64748B" },
+
+  tabEscrow:       { borderWidth: 1.5, borderColor: "#7C3AED" },
+
+  // Escrow
+  escrowBox:         { marginTop: 10, backgroundColor: "#F5F3FF", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#DDD6FE" },
+  escrowHeader:      { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  escrowTitle:       { fontSize: 13, fontWeight: "700", color: "#7C3AED", flex: 1 },
+  escrowDesc:        { fontSize: 12, color: "#6D28D9", lineHeight: 17, marginBottom: 10 },
+  escrowActions:     { flexDirection: "row", gap: 10 },
+  escrowBtn:         { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10 },
+  escrowBtnRefund:   { backgroundColor: "#059669" },
+  escrowBtnRelease:  { backgroundColor: "#7C3AED" },
+  escrowBtnDim:      { opacity: 0.6 },
+  escrowBtnText:     { color: "#fff", fontSize: 12, fontWeight: "700" },
+  escrowDecidedBox:  { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
+  escrowDecidedRefund:  { backgroundColor: "#D1FAE5" },
+  escrowDecidedRelease: { backgroundColor: "#EDE9FE" },
+  escrowDecidedText: { fontSize: 12, fontWeight: "700" },
 });

@@ -36,6 +36,9 @@ const API_ENDPOINTS = {
   GET_PAYMENTS:    `${API_BASE_URL}/get_payments.php`,
   ESCROW_DECISION: `${API_BASE_URL}/escrow_decision.php`,
 
+  // ── User Profile ──────────────────────────────────────
+  GET_USER_PROFILE:`${API_BASE_URL}/get_user_profile.php`,
+
   // ── Admin ─────────────────────────────────────────────
   GET_ADMIN_STATS: `${API_BASE_URL}/get_admin_stats.php`,
   GET_USERS:       `${API_BASE_URL}/get_users.php`,
@@ -49,6 +52,13 @@ const API_ENDPOINTS = {
   // ── Misc ──────────────────────────────────────────────
   VERIFY_QR:       `${API_BASE_URL}/verify_qr.php`,
   APPROVE_PAYMENT: `${API_BASE_URL}/approve_payment.php`,
+
+  // ── Lease Renewal ─────────────────────────────────────
+  RENEW_LEASE:     `${API_BASE_URL}/renew_lease.php`,
+
+  // ── Messaging ─────────────────────────────────────────
+  GET_MESSAGES:    `${API_BASE_URL}/get_messages.php`,
+  SEND_MESSAGE:    `${API_BASE_URL}/send_message.php`,
 };
 
 export default API_ENDPOINTS;

@@ -3,8 +3,9 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, Linking, Modal, Platform, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View, Image,
+  StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import API_ENDPOINTS from "../../config/api";
 import { UserStorage } from "../../utils/userStorage";
@@ -380,6 +381,21 @@ const SIG = StyleSheet.create({
 // ─── step resolution ───────────────────────────────────────────────────────
 type StepId = 0 | 1 | 2 | 3;
 
+function getNextDueDate(moveIn: string): { dateStr: string; daysLeft: number } | null {
+  if (!moveIn) return null;
+  const parts = moveIn.split("-");
+  if (parts.length < 3) return null;
+  const day = parseInt(parts[2], 10);
+  const now  = new Date();
+  let due = new Date(now.getFullYear(), now.getMonth(), day);
+  if (due.getTime() - now.getTime() <= 0) {
+    due = new Date(now.getFullYear(), now.getMonth() + 1, day);
+  }
+  const daysLeft = Math.ceil((due.getTime() - now.getTime()) / 86400000);
+  const dateStr  = due.toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" });
+  return { dateStr, daysLeft };
+}
+
 function activeStep(b: Booking, payDone: boolean): StepId {
   if (b.status !== "approved") return 0;
   const cs = b.contract_status ?? "none";
@@ -483,48 +499,27 @@ export default function TenantFlowPage() {
 
     // BYPASS MODE - Skip PayMongo entirely for testing
     try {
-      console.log('BYPASS: Simulating successful payment for booking:', b.id);
-
-      // Simulate a short delay like a real API call
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Create fake successful response
-      const fakePaymentData = {
-        status: "success",
-        checkout_url: "https://fake-checkout.test/success",
-        session_id: `fake_${Date.now()}`,
-        transaction_id: `BYPASS_PM_${b.id}_${Date.now()}`,
-        message: "Bypass payment completed - QR access pass ready!",
-        is_mock: true,
-        fake_mode: true
-      };
+      const txId = `BYPASS_PM_${b.id}_${Date.now()}`;
 
-      console.log('BYPASS: Fake payment success:', fakePaymentData);
-
-      // Store fake checkout URL and mark method
       setPayments((prev) => ({
         ...prev,
         [b.id]: {
           ...(prev[b.id] ?? defaultPay()),
           submitting: false,
           method: "bypass_paymongo",
-          checkoutUrl: fakePaymentData.checkout_url,
-          done: true // Auto-complete bypass payment
+          done: true,
         },
       }));
 
-      // Automatically mark as completed for testing
-      const txId = fakePaymentData.transaction_id;
       await recordLocalPayment(b, txId);
 
-      // Success message - QR will auto-show due to payment completion
       setTimeout(() => {
-        showAlert("🎉 Payment Complete!", "Payment bypassed successfully! Your digital QR access pass is now ready. Scroll down to Step 4 to see your QR code!");
+        showAlert("🎉 Payment Complete!", "Payment processed! Your QR code is now ready in Step 4.");
       }, 500);
 
-    } catch (error) {
-      console.error('Bypass payment error:', error);
-      showAlert("Bypass Error", `Even bypass failed: ${error.message}`);
+    } catch {
       setPayField(b.id, "submitting", false);
     }
   }
@@ -548,11 +543,15 @@ export default function TenantFlowPage() {
 
   async function recordLocalPayment(b: Booking, txId: string) {
     const deposit = Number(b.property_deposit) || Number(b.property_price);
+    // Optimistically approve locally so properties page sees it immediately
+    setBookings((prev) =>
+      prev.map((bk) => bk.id === b.id ? { ...bk, payment_status: "approved" } : bk),
+    );
     try {
       const res  = await fetch(API_ENDPOINTS.PAYMENT, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ booking_id: b.id, amount: deposit, method: "paymongo", type: "security_deposit", escrow: true, transaction_id: txId }),
+        body:    JSON.stringify({ booking_id: b.id, amount: deposit, method: "paymongo", type: "security_deposit", escrow: true, transaction_id: txId, is_bypass: true }),
       });
       const data = await res.json();
       const finalTxId = data.transaction_id ?? txId;
@@ -560,22 +559,57 @@ export default function TenantFlowPage() {
         ...prev,
         [b.id]: { ...(prev[b.id] ?? defaultPay()), submitting: false, done: true, txId: finalTxId },
       }));
-      setBookings((prev) =>
-        prev.map((bk) => bk.id === b.id ? { ...bk, payment_status: "pending_owner_approval" } : bk),
-      );
-      // Notify tenant
       if (userId) {
         sendNotification(
           userId, "tenant", "payment",
-          "Payment Submitted!",
-          `Your security deposit of ₱${deposit.toLocaleString()} for "${b.property_name}" has been submitted via PayMongo and is awaiting owner approval. Ref: ${finalTxId}`,
+          "Payment Complete!",
+          `Your security deposit of ₱${deposit.toLocaleString()} for "${b.property_name}" has been approved. Ref: ${finalTxId}`,
           b.id, "approval",
         );
       }
     } catch {
-      showAlert("Record Error", "Payment may have succeeded but could not be recorded. Please contact support.");
+      // Server unreachable — local state already shows approved, keep done state
       setPayField(b.id, "submitting", false);
     }
+  }
+
+  // ── cancel booking helper ─────────────────────────────────────────────────
+  const [cancellingBookingId, setCancellingBookingId] = useState<number | null>(null);
+
+  async function cancelBooking(b: Booking) {
+    Alert.alert(
+      "Cancel Booking?",
+      `Are you sure you want to cancel your booking for "${b.property_name}"? This action cannot be undone.`,
+      [
+        { text: "No, Keep It", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            setCancellingBookingId(b.id);
+            try {
+              const res = await fetch(API_ENDPOINTS.DELETE_BOOKING, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ booking_id: b.id }),
+              });
+              const data = await res.json();
+              if (data.status === "success") {
+                // Remove booking from local state
+                setBookings((prev) => prev.filter((bk) => bk.id !== b.id));
+                showAlert("Cancelled", "Your booking has been cancelled successfully.");
+              } else {
+                showAlert("Error", data.message || "Failed to cancel booking.");
+              }
+            } catch {
+              showAlert("Connection Error", "Cannot reach the server. Please try again.");
+            } finally {
+              setCancellingBookingId(null);
+            }
+          },
+        },
+      ]
+    );
   }
 
   // ── render helpers ────────────────────────────────────────────────────────
@@ -638,10 +672,27 @@ export default function TenantFlowPage() {
           )}
 
           {isActive && b.status === "pending" && (
-            <View style={S.pendingBox}>
-              <ActivityIndicator size="small" color="#D97706" />
-              <Text style={S.pendingText}>Waiting for owner approval…</Text>
-            </View>
+            <>
+              <View style={S.pendingBox}>
+                <ActivityIndicator size="small" color="#D97706" />
+                <Text style={S.pendingText}>Waiting for owner approval…</Text>
+              </View>
+              <TouchableOpacity
+                style={S.cancelBtn}
+                onPress={() => cancelBooking(b)}
+                disabled={cancellingBookingId === b.id}
+                activeOpacity={0.7}
+              >
+                {cancellingBookingId === b.id ? (
+                  <ActivityIndicator size="small" color="#DC2626" />
+                ) : (
+                  <>
+                    <Ionicons name="close-circle-outline" size={16} color="#DC2626" />
+                    <Text style={S.cancelBtnText}>Cancel Booking</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
@@ -1044,12 +1095,12 @@ export default function TenantFlowPage() {
 
     // AUTO QR GENERATION: Include bypass/fake payments
     const hasPayment = isPending || isApproved;
-    const autoQREnabled = hasPayment; // Generate QR automatically for any payment
+    const autoQREnabled = hasPayment || getPayment(b.id).done; // also triggers when bypass sets p.done=true
 
     const deposit = Number(b.property_deposit) || Number(b.property_price);
 
     const qrData = [
-      "PADFINDER TENANT QR ACCESS PASS",
+      "PADFINDER TENANT QR CODE",
       `Reference: PF-${String(b.id).padStart(6, "0")}`,
       `Tenant: ${tenantName}`,
       `Property: ${b.property_name}`,
@@ -1061,8 +1112,6 @@ export default function TenantFlowPage() {
       `Valid Until: ${new Date(Date.now() + 365*24*60*60*1000).toLocaleDateString("en-US")}`, // 1 year validity
       "Scan at Property for Instant Access"
     ].join("\n");
-
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=15&format=png&ecc=M&qzone=2&data=${encodeURIComponent(qrData)}`;
 
     return (
       <View style={[S.stepRow, { marginBottom: 0 }]}>
@@ -1076,26 +1125,26 @@ export default function TenantFlowPage() {
             {isActive && hasPayment && !autoQREnabled && <View style={[S.badge, S.badgeReview]}><Text style={S.badgeText}>GENERATING</Text></View>}
             {autoQREnabled && <View style={[S.badge, S.badgeQRReady]}><Text style={S.badgeText}>QR READY</Text></View>}
           </View>
-          <Text style={[S.stepTitle, locked && S.stepTitleLocked]}>Digital Access Pass</Text>
+          <Text style={[S.stepTitle, locked && S.stepTitleLocked]}>QR Code</Text>
 
-          {locked && <Text style={S.lockedNote}>Complete payment to unlock your digital QR access pass.</Text>}
+          {locked && <Text style={S.lockedNote}>Complete payment to unlock your QR code.</Text>}
 
           {autoQREnabled && (
             <View style={S.qrReadySection}>
               {/* QR Success Banner */}
               <View style={S.qrSuccessBanner}>
                 <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
-                <Text style={S.qrSuccessTitle}>🎉 Access Pass Generated!</Text>
+                <Text style={S.qrSuccessTitle}>🎉 QR Code Ready!</Text>
               </View>
 
               <Text style={S.qrDescription}>
-                Your digital access pass is ready! Show this QR code at the property for instant verification and access to building amenities.
+                Your QR code is ready! Show this QR code at the property for instant verification and access to building amenities.
               </Text>
 
               {/* QR Code Display */}
               <View style={S.qrCodeContainer}>
                 <View style={S.qrCodeFrame}>
-                  <Image source={{ uri: qrUrl }} style={S.qrCodeImage} />
+                  <QRCode value={qrData} size={220} color="#0F172A" backgroundColor="#FFFFFF" />
                   {/* Verification badge - positioned at bottom right of QR */}
                   <View style={[S.qrCodeOverlay, { bottom: 8, right: 8, top: undefined }]}>
                     <MaterialCommunityIcons name="shield-check" size={24} color="#059669" />
@@ -1127,18 +1176,26 @@ export default function TenantFlowPage() {
                   } as any)}
                 >
                   <MaterialCommunityIcons name="download" size={16} color="#2563EB" />
-                  <Text style={S.qrDownloadText}>Download Full Pass</Text>
+                  <Text style={S.qrDownloadText}>Download QR Code</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={S.qrShareBtn}>
                   <MaterialCommunityIcons name="share-variant" size={16} color="#fff" />
                   <Text style={S.qrShareText}>Share QR Code</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={S.qrPropertiesBtn}
+                  onPress={() => router.replace("/tenant/properties" as any)}
+                >
+                  <Ionicons name="home-outline" size={16} color="#fff" />
+                  <Text style={S.qrPropertiesText}>Go to My Properties</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Usage Instructions */}
               <View style={S.qrInstructions}>
-                <Text style={S.qrInstructionsTitle}>📱 How to Use Your Access Pass:</Text>
+                <Text style={S.qrInstructionsTitle}>📱 How to Use Your QR Code:</Text>
                 <View style={S.instructionsList}>
                   <Text style={S.instructionItem}>• Present QR code at property entrance</Text>
                   <Text style={S.instructionItem}>• Security/landlord scans for verification</Text>
@@ -1153,9 +1210,9 @@ export default function TenantFlowPage() {
           {!autoQREnabled && isActive && isPending && (
             <View style={S.qrWaiting}>
               <ActivityIndicator size="small" color="#D97706" />
-              <Text style={S.qrWaitTitle}>Generating Access Pass...</Text>
+              <Text style={S.qrWaitTitle}>Generating QR Code...</Text>
               <Text style={S.qrWaitNote}>
-                Processing your payment verification. Your QR access pass will be ready momentarily.
+                Processing your payment verification. Your QR code will be ready momentarily.
               </Text>
             </View>
           )}
@@ -1196,35 +1253,133 @@ export default function TenantFlowPage() {
             </TouchableOpacity>
           </View>
         ) : (
-          bookings.map((b) => {
-            const p = getPayment(b.id);
-            const step = activeStep(b, p.done || ["paid","pending_owner_approval","approved"].includes(b.payment_status ?? "none"));
-            return (
-              <View key={b.id} style={S.bookingCard}>
-                {/* Card header */}
-                <View style={S.cardTop}>
-                  <View style={S.cardIcon}>
-                    <Ionicons name="home" size={20} color="#2563EB" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={S.cardPropName}>{b.property_name}</Text>
-                    <Text style={S.cardPropAddr}>{b.property_address}</Text>
-                  </View>
-                  <View style={S.stepPill}>
-                    <Text style={S.stepPillText}>Step {step + 1} / 4</Text>
-                  </View>
-                </View>
-
-                <View style={S.stepsContainer}>
-                  {renderBookingStep(b, step)}
-                  {renderContractStep(b, step)}
-                  {renderPaymentStep(b, step)}
-                  {renderQRStep(b, step)}
-                </View>
-              </View>
+          (() => {
+            const inProgress = bookings.filter((b) =>
+              !(b.status === "approved" && b.payment_status === "approved")
             );
-          })
+            const completedCount = bookings.length - inProgress.length;
+
+            return (
+              <>
+                {inProgress.length === 0 ? (
+                  <View style={S.center}>
+                    <MaterialCommunityIcons name="check-decagram" size={60} color="#16A34A" />
+                    <Text style={S.emptyTitle}>All Bookings Complete!</Text>
+                    <Text style={S.emptySub}>Your rental{completedCount !== 1 ? "s are" : " is"} active. View them in My Properties.</Text>
+                    <TouchableOpacity style={[S.browseCta, { backgroundColor: "#7C3AED" }]} onPress={() => router.replace("/tenant/properties" as any)}>
+                      <Text style={S.browseCtaText}>Go to My Properties</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  inProgress.map((b) => {
+                    const p = getPayment(b.id);
+                    const step = activeStep(b, p.done || ["paid","pending_owner_approval","approved"].includes(b.payment_status ?? "none"));
+                    return (
+                      <View key={b.id} style={S.bookingCard}>
+                        {/* Card header */}
+                        <View style={S.cardTop}>
+                          <View style={S.cardIcon}>
+                            <Ionicons name="home" size={20} color="#2563EB" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={S.cardPropName}>{b.property_name}</Text>
+                            <Text style={S.cardPropAddr}>{b.property_address}</Text>
+                          </View>
+                          <View style={S.stepPill}>
+                            <Text style={S.stepPillText}>Step {step + 1} / 4</Text>
+                          </View>
+                        </View>
+
+                        <View style={S.stepsContainer}>
+                          {renderBookingStep(b, step)}
+                          {renderContractStep(b, step)}
+                          {renderPaymentStep(b, step)}
+                          {renderQRStep(b, step)}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+
+                {completedCount > 0 && inProgress.length > 0 && (
+                  <TouchableOpacity style={S.completedBanner} onPress={() => router.replace("/tenant/properties" as any)}>
+                    <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                    <Text style={S.completedBannerText}>{completedCount} completed rental{completedCount !== 1 ? "s" : ""} in My Properties</Text>
+                    <Ionicons name="arrow-forward" size={16} color="#16A34A" />
+                  </TouchableOpacity>
+                )}
+              </>
+            );
+          })()
         )}
+
+        {/* ── Monthly Rent Due Dates ── */}
+        {(() => {
+          const activeRentals = bookings.filter(
+            (b) => b.status === "approved" && (b.payment_status === "approved" || b.payment_status === "pending_owner_approval")
+          );
+          if (activeRentals.length === 0) return null;
+
+          const withDue = activeRentals.map((b) => {
+            const due = getNextDueDate(b.move_in);
+            return { booking: b, due };
+          }).filter((x) => x.due !== null) as { booking: Booking; due: { dateStr: string; daysLeft: number } }[];
+
+          const groups: { label: string; emoji: string; color: string; bg: string; badge: string; items: typeof withDue } [] = [
+            { label: "This Week",  emoji: "🔴", color: "#DC2626", bg: "#FEF2F2", badge: "#FEE2E2", items: withDue.filter((x) => x.due.daysLeft <= 7) },
+            { label: "Next Week",  emoji: "🟡", color: "#D97706", bg: "#FFFBEB", badge: "#FEF3C7", items: withDue.filter((x) => x.due.daysLeft > 7 && x.due.daysLeft <= 14) },
+            { label: "Later",      emoji: "🔵", color: "#2563EB", bg: "#EFF6FF", badge: "#DBEAFE", items: withDue.filter((x) => x.due.daysLeft > 14 && x.due.daysLeft <= 60) },
+            { label: "Next Year",  emoji: "⚪", color: "#64748B", bg: "#F8FAFC", badge: "#E2E8F0", items: withDue.filter((x) => x.due.daysLeft > 60) },
+          ];
+
+          const hasAny = groups.some((g) => g.items.length > 0);
+          if (!hasAny) return null;
+
+          return (
+            <View style={S.dueDatesSection}>
+              <View style={S.dueDatesHeader}>
+                <Ionicons name="calendar-outline" size={18} color="#0F172A" />
+                <Text style={S.dueDatesTitle}>Monthly Rent Due Dates</Text>
+              </View>
+              <Text style={S.dueDatesSub}>Upcoming payment deadlines for your active rentals</Text>
+              {groups.map((g) => {
+                if (g.items.length === 0) return null;
+                return (
+                  <View key={g.label} style={[S.dueGroup, { backgroundColor: g.bg }]}>
+                    <View style={S.dueGroupHeader}>
+                      <Text style={S.dueGroupEmoji}>{g.emoji}</Text>
+                      <Text style={[S.dueGroupLabel, { color: g.color }]}>{g.label}</Text>
+                      <View style={[S.dueGroupCount, { backgroundColor: g.badge }]}>
+                        <Text style={[S.dueGroupCountText, { color: g.color }]}>{g.items.length}</Text>
+                      </View>
+                    </View>
+                    {g.items.map(({ booking, due }) => (
+                      <View key={booking.id} style={S.dueItem}>
+                        <View style={S.dueItemLeft}>
+                          <Ionicons name="home-outline" size={14} color="#64748B" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={S.dueItemName} numberOfLines={1}>{booking.property_name}</Text>
+                          <Text style={S.dueItemAddr} numberOfLines={1}>{booking.property_address}</Text>
+                          <Text style={S.dueItemDate}>{due.dateStr}</Text>
+                        </View>
+                        <View style={S.dueItemRight}>
+                          <Text style={[S.dueItemRent, { color: g.color }]}>₱{Number(booking.property_price).toLocaleString()}</Text>
+                          <View style={[S.dueItemDaysBadge, { backgroundColor: g.badge }]}>
+                            <Text style={[S.dueItemDaysText, { color: g.color }]}>
+                              {due.daysLeft === 0 ? "TODAY" : `${due.daysLeft}d`}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
+
       </ScrollView>
 
       {/* Contract Modal — a single modal rendered at the top level so only one is open at a time */}
@@ -1252,6 +1407,8 @@ const S = StyleSheet.create({
   emptySub:     { fontSize: 14, color: "#CBD5E1", textAlign: "center", maxWidth: 260 },
   browseCta:    { backgroundColor: "#1D4ED8", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10, marginTop: 8 },
   browseCtaText:{ color: "#fff", fontWeight: "700", fontSize: 14 },
+  completedBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0", borderRadius: 12, padding: 14, marginBottom: 12 },
+  completedBannerText: { flex: 1, fontSize: 13, fontWeight: "600", color: "#16A34A" },
 
   bookingCard:  { backgroundColor: "#fff", borderRadius: 16, marginBottom: 18, overflow: "hidden", ...Platform.select({ web: { boxShadow: "0 2px 10px rgba(0,0,0,0.07)" } as any, default: { shadowColor: "#000", shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 } }) },
   cardTop:      { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
@@ -1300,6 +1457,9 @@ const S = StyleSheet.create({
 
   pendingBox:   { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, backgroundColor: "#FFFBEB", padding: 10, borderRadius: 8 },
   pendingText:  { fontSize: 12, color: "#92400E" },
+
+  cancelBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, backgroundColor: "#FEF2F2", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: "#FCA5A5" },
+  cancelBtnText:{ fontSize: 13, fontWeight: "600", color: "#DC2626" },
 
   doneBox:      { flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: "#F0FDF4", padding: 10, borderRadius: 8 },
   doneText:     { fontSize: 12, color: "#166534", flex: 1 },
@@ -1402,9 +1562,8 @@ const S = StyleSheet.create({
   qrDescription:        { fontSize: 13, color: "#64748B", lineHeight: 20, textAlign: "center" },
 
   qrCodeContainer:      { alignItems: "center", gap: 12 },
-  qrCodeFrame:          { backgroundColor: "#fff", borderRadius: 16, padding: 20, borderWidth: 2, borderColor: "#E2E8F0", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-  qrCodeImage:          { width: 200, height: 200, borderRadius: 8 },
-  qrCodeOverlay:        { position: "absolute" as const, top: 8, right: 8, backgroundColor: "#fff", borderRadius: 12, padding: 4, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 },
+  qrCodeFrame:          { backgroundColor: "#fff", borderRadius: 16, padding: 20, borderWidth: 2, borderColor: "#E2E8F0", ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.10)" } as any, default: { shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 } }) },
+  qrCodeOverlay:        { position: "absolute" as const, top: 8, right: 8, backgroundColor: "#fff", borderRadius: 12, padding: 4, ...Platform.select({ web: { boxShadow: "0 1px 4px rgba(0,0,0,0.10)" } as any, default: { shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4 } }) },
 
   qrInfoBox:            { alignItems: "center", gap: 2 },
   qrRefText:            { fontSize: 14, fontWeight: "800", color: "#1D4ED8" },
@@ -1416,6 +1575,8 @@ const S = StyleSheet.create({
   qrDownloadText:       { fontSize: 13, fontWeight: "600", color: "#2563EB" },
   qrShareBtn:           { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#059669", paddingVertical: 12, borderRadius: 10 },
   qrShareText:          { fontSize: 13, fontWeight: "600", color: "#fff" },
+  qrPropertiesBtn:      { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#7C3AED", paddingVertical: 13, borderRadius: 10, marginTop: 4 },
+  qrPropertiesText:     { fontSize: 14, fontWeight: "700", color: "#fff" },
 
   qrInstructions:       { backgroundColor: "#F8FAFC", borderRadius: 10, padding: 14, borderWidth: 1, borderColor: "#E2E8F0" },
   qrInstructionsTitle:  { fontSize: 13, fontWeight: "700", color: "#334155", marginBottom: 8 },
@@ -1487,4 +1648,25 @@ const CM = StyleSheet.create({
   submitBtnDim:  { backgroundColor: "#94A3B8" },
   submitBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
   disclaimer:    { textAlign: "center", fontSize: 11, color: "#94A3B8", marginTop: 14, lineHeight: 17, paddingHorizontal: 10 },
+
+  // Monthly Rent Due Dates
+  dueDatesSection:    { backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 14, ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.05)" } as any, default: { shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 } }) },
+  dueDatesHeader:     { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  dueDatesTitle:      { fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  dueDatesSub:        { fontSize: 12, color: "#64748B", marginBottom: 14 },
+  dueGroup:           { borderRadius: 12, padding: 12, marginBottom: 10 },
+  dueGroupHeader:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
+  dueGroupEmoji:      { fontSize: 14 },
+  dueGroupLabel:      { fontSize: 13, fontWeight: "700", flex: 1 },
+  dueGroupCount:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
+  dueGroupCountText:  { fontSize: 11, fontWeight: "700" },
+  dueItem:            { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "rgba(0,0,0,0.06)" },
+  dueItemLeft:        { width: 22, alignItems: "center" },
+  dueItemName:        { fontSize: 13, fontWeight: "700", color: "#0F172A", marginBottom: 1 },
+  dueItemAddr:        { fontSize: 11, color: "#64748B", marginBottom: 2 },
+  dueItemDate:        { fontSize: 11, color: "#94A3B8" },
+  dueItemRight:       { alignItems: "flex-end", gap: 4 },
+  dueItemRent:        { fontSize: 14, fontWeight: "800" },
+  dueItemDaysBadge:   { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  dueItemDaysText:    { fontSize: 11, fontWeight: "800" },
 });

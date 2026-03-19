@@ -60,20 +60,6 @@ function getNextDueDate(moveIn: string): { dateStr: string; daysLeft: number } |
   return { dateStr, daysLeft };
 }
 
-function getMethodIcon(method: string): { name: string; color: string; bg: string } {
-  if (method === "gcash")         return { name: "phone-portrait",   color: "#2563EB", bg: "#EFF6FF" };
-  if (method === "card")          return { name: "card",             color: "#7C3AED", bg: "#F5F3FF" };
-  if (method === "bank_transfer") return { name: "business",         color: "#0891B2", bg: "#ECFEFF" };
-  return                                 { name: "cash",             color: "#059669", bg: "#F0FDF4" };
-}
-
-function getMethodLabel(method: string): string {
-  if (method === "gcash")         return "GCash";
-  if (method === "card")          return "Credit / Debit Card";
-  if (method === "bank_transfer") return "Bank Transfer";
-  return "Cash";
-}
-
 function deriveJourney(bookings: Booking[], payments: Payment[]): JourneyStep[] {
   const approved = bookings.find((b) => b.status === "approved");
   const pending  = bookings.find((b) => b.status === "pending");
@@ -142,7 +128,6 @@ export default function TenantDashboard() {
   const [payments,   setPayments]   = useState<Payment[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showAllPay, setShowAllPay] = useState(false);
 
   const fetchData = useCallback(async (userId: number) => {
     try {
@@ -174,13 +159,14 @@ export default function TenantDashboard() {
   const activeStep       = journey.find((s) => s.status === "active" || s.status === "review");
   const approvedBookings = bookings.filter((b) => b.status === "approved");
   const pendingBookings  = bookings.filter((b) => b.status === "pending");
+  const confirmedBookings = bookings.filter((b) => b.status === "approved" && b.payment_status === "approved");
   const paidPayments     = payments.filter((p) => p.status === "paid");
   const totalPaid        = paidPayments.reduce((acc, p) => acc + Number(p.amount), 0);
-  const displayPayments  = showAllPay ? payments : payments.slice(0, 3);
 
   function handleStepPress(step: JourneyStep) {
     if (step.status === "locked") return;
     if (step.id === "booking" && step.status === "active") router.push("/tenant/browse-properties" as any);
+    else if (step.id === "qr" && step.status === "done") router.push("/tenant/properties" as any);
     else router.push("/tenant/approvals" as any);
   }
 
@@ -276,7 +262,7 @@ export default function TenantDashboard() {
           {/* ── Stats ── */}
           <View style={S.statsRow}>
             {[
-              { icon: "home-city",   label: "Active\nRentals",  value: String(approvedBookings.length),  bg: "#EFF6FF", color: "#2563EB" },
+              { icon: "home-outline",   label: "Active\nRentals",  value: String(approvedBookings.length),  bg: "#EFF6FF", color: "#2563EB" },
               { icon: "time-outline",label: "Pending\nBookings",value: String(pendingBookings.length),   bg: "#FFFBEB", color: "#D97706" },
               { icon: "cash-outline",label: "Total Paid",       value: `₱${totalPaid.toLocaleString()}`, bg: "#F0FDF4", color: "#059669" },
             ].map((s, i) => (
@@ -287,6 +273,52 @@ export default function TenantDashboard() {
               </View>
             ))}
           </View>
+
+          {/* ── Confirmed Properties ── */}
+          {confirmedBookings.length > 0 && (
+            <View style={S.sectionCard}>
+              <View style={S.sectionHeader}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={[S.sectionTitle, { color: "#059669" }]}>Your Confirmed Properties</Text>
+              </View>
+              {confirmedBookings.map((b) => (
+                <TouchableOpacity
+                  key={b.id}
+                  style={S.confirmedCard}
+                  onPress={() => router.push("/tenant/properties" as any)}
+                  activeOpacity={0.75}
+                >
+                  <View style={S.confirmedStatusBar} />
+                  <View style={{ flex: 1 }}>
+                    <View style={S.confirmedTopRow}>
+                      <Text style={S.confirmedProp} numberOfLines={1}>{b.property_name}</Text>
+                      <View style={S.confirmedBadge}>
+                        <Ionicons name="checkmark" size={12} color="#fff" />
+                        <Text style={S.confirmedBadgeText}>Ready</Text>
+                      </View>
+                    </View>
+                    <Text style={S.confirmedAddr} numberOfLines={1}>{b.property_address}</Text>
+                    <View style={S.confirmedMetaRow}>
+                      <Ionicons name="home" size={11} color="#059669" />
+                      <Text style={S.confirmedMeta}>Ready to move in</Text>
+                      <Text style={S.confirmedDot}>·</Text>
+                      <Ionicons name="calendar" size={11} color="#059669" />
+                      <Text style={S.confirmedMeta}>{b.move_in}</Text>
+                    </View>
+                  </View>
+                  <View style={S.confirmedArrow}>
+                    <Ionicons name="chevron-forward" size={16} color="#059669" />
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={S.viewAllConfirmedBtn}
+                onPress={() => router.push("/tenant/properties" as any)}
+              >
+                <Text style={S.viewAllConfirmedText}>View All Confirmed Properties →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* ── Monthly Rent Due Dates ── */}
           {approvedBookings.length > 0 && (
@@ -382,84 +414,6 @@ export default function TenantDashboard() {
             )}
           </View>
 
-          {/* ── Transaction History ── */}
-          {payments.length > 0 && (
-            <View style={S.sectionCard}>
-              <View style={S.sectionHeader}>
-                <Ionicons name="receipt-outline" size={16} color="#0F172A" />
-                <Text style={S.sectionTitle}>Transaction History</Text>
-              </View>
-
-              {/* Summary strip */}
-              <View style={S.txnSummary}>
-                <View style={S.txnSumItem}>
-                  <Text style={S.txnSumVal}>₱{totalPaid.toLocaleString()}</Text>
-                  <Text style={S.txnSumLabel}>Total Paid</Text>
-                </View>
-                <View style={S.txnSumDivider} />
-                <View style={S.txnSumItem}>
-                  <Text style={S.txnSumVal}>{paidPayments.length}</Text>
-                  <Text style={S.txnSumLabel}>Completed</Text>
-                </View>
-                <View style={S.txnSumDivider} />
-                <View style={S.txnSumItem}>
-                  <Text style={S.txnSumVal}>{payments.length - paidPayments.length}</Text>
-                  <Text style={S.txnSumLabel}>Pending</Text>
-                </View>
-              </View>
-
-              {displayPayments.map((p) => {
-                const mi     = getMethodIcon(p.method);
-                const isPaid = p.status === "paid";
-                const dt     = new Date(p.created_at);
-                const dateStr = isNaN(dt.getTime())
-                  ? p.created_at
-                  : dt.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
-                const timeStr = isNaN(dt.getTime()) ? "" : dt.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" });
-                return (
-                  <View key={p.id} style={S.txnCard}>
-                    <View style={[S.txnIcon, { backgroundColor: mi.bg }]}>
-                      <Ionicons name={mi.name as any} size={18} color={mi.color} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={S.txnTopRow}>
-                        <Text style={S.txnProp} numberOfLines={1}>{p.property_name}</Text>
-                        <Text style={[S.txnAmt, { color: isPaid ? "#059669" : "#D97706" }]}>
-                          ₱{Number(p.amount).toLocaleString()}
-                        </Text>
-                      </View>
-                      <View style={S.txnMidRow}>
-                        <View style={[S.txnMethodBadge, { backgroundColor: mi.bg }]}>
-                          <Text style={[S.txnMethodText, { color: mi.color }]}>{getMethodLabel(p.method)}</Text>
-                        </View>
-                        <View style={[S.badge, { backgroundColor: isPaid ? "#D1FAE5" : "#FEF3C7" }]}>
-                          <Text style={[S.badgeText, { color: isPaid ? "#059669" : "#D97706" }]}>
-                            {p.status.toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={S.txnMetaRow}>
-                        <Ionicons name="receipt-outline" size={10} color="#94A3B8" />
-                        <Text style={S.txnMeta} numberOfLines={1}>TXN: {p.transaction_id}</Text>
-                      </View>
-                      <View style={S.txnMetaRow}>
-                        <Ionicons name="time-outline" size={10} color="#94A3B8" />
-                        <Text style={S.txnMeta}>{dateStr}{timeStr ? `  ·  ${timeStr}` : ""}</Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              })}
-
-              {payments.length > 3 && (
-                <TouchableOpacity style={S.showMoreBtn} onPress={() => setShowAllPay(!showAllPay)}>
-                  <Text style={S.showMoreText}>
-                    {showAllPay ? "Show less ▲" : `Show all ${payments.length} transactions ▼`}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
 
           <View style={{ height: 24 }} />
         </ScrollView>
@@ -536,26 +490,23 @@ const S = StyleSheet.create({
   metaText:     { fontSize: 11, color: "#94A3B8" },
   dot:          { fontSize: 10, color: "#CBD5E1" },
 
-  // Transactions
-  txnSummary:    { flexDirection: "row", backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 12 },
-  txnSumItem:    { flex: 1, alignItems: "center", gap: 2 },
-  txnSumVal:     { fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  txnSumLabel:   { fontSize: 10, color: "#64748B" },
-  txnSumDivider: { width: 1, backgroundColor: "#E2E8F0", marginVertical: 4 },
-  txnCard:       { flexDirection: "row", gap: 10, backgroundColor: "#F8FAFC", borderRadius: 10, padding: 12, marginBottom: 8 },
-  txnIcon:       { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  txnTopRow:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  txnProp:       { fontSize: 13, fontWeight: "700", color: "#1E293B", flex: 1, marginRight: 6 },
-  txnAmt:        { fontSize: 14, fontWeight: "800" },
-  txnMidRow:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
-  txnMethodBadge:{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  txnMethodText: { fontSize: 10, fontWeight: "700" },
-  txnMetaRow:    { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  txnMeta:       { fontSize: 10, color: "#94A3B8" },
-  showMoreBtn:   { alignItems: "center", paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#E2E8F0", marginTop: 4 },
-  showMoreText:  { fontSize: 13, color: "#2563EB", fontWeight: "600" },
-
   // Shared badge
   badge:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   badgeText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+
+  // Confirmed properties
+  confirmedCard:      { flexDirection: "row", backgroundColor: "#F0FDF4", borderRadius: 10, marginBottom: 8, overflow: "hidden", borderLeftWidth: 4, borderLeftColor: "#059669" },
+  confirmedStatusBar: { width: 0 },
+  confirmedBody:      { flex: 1, padding: 10 },
+  confirmedTopRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  confirmedProp:      { fontSize: 13, fontWeight: "700", color: "#0F172A", flex: 1, marginRight: 6 },
+  confirmedBadge:     { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#059669", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  confirmedBadgeText: { fontSize: 10, fontWeight: "700", color: "#fff" },
+  confirmedAddr:      { fontSize: 11, color: "#64748B", marginBottom: 4 },
+  confirmedMetaRow:   { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  confirmedMeta:      { fontSize: 11, color: "#059669", fontWeight: "500" },
+  confirmedDot:       { fontSize: 10, color: "#D1FAE5" },
+  confirmedArrow:     { justifyContent: "center", paddingRight: 10 },
+  viewAllConfirmedBtn: { alignItems: "center", paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#D1FAE5", marginTop: 4 },
+  viewAllConfirmedText: { fontSize: 13, color: "#059669", fontWeight: "700" },
 });

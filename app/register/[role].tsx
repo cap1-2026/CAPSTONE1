@@ -31,27 +31,36 @@ export default function RegisterScreen() {
   const [showPw,    setShowPw]    = useState(false);
   const [showCpw,   setShowCpw]   = useState(false);
   const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
 
   function validate(): boolean {
+    setError("");
     if (!fullname.trim() || !address.trim() || !contact.trim() || !email.trim()) {
+      setError("Please fill in all required fields.");
       Alert.alert("Missing Fields", "Please fill in all required fields."); return false;
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
+      setError("Please enter a valid email address.");
       Alert.alert("Invalid Email", "Please enter a valid email address."); return false;
     }
     if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       Alert.alert("Weak Password", "Password must be at least 8 characters."); return false;
     }
     if (!/[A-Z]/.test(password)) {
+      setError("Password must contain at least one uppercase letter.");
       Alert.alert("Weak Password", "Password must contain at least one uppercase letter."); return false;
     }
     if (!/[a-z]/.test(password)) {
+      setError("Password must contain at least one lowercase letter.");
       Alert.alert("Weak Password", "Password must contain at least one lowercase letter."); return false;
     }
     if (!/[0-9]/.test(password)) {
+      setError("Password must contain at least one number.");
       Alert.alert("Weak Password", "Password must contain at least one number."); return false;
     }
     if (password !== confirmPw) {
+      setError("Passwords do not match.");
       Alert.alert("Password Mismatch", "Passwords do not match."); return false;
     }
     return true;
@@ -69,14 +78,17 @@ export default function RegisterScreen() {
       const data = await res.json();
 
       if (data.status === "success") {
+        setError("");
         router.replace({
           pathname: "/register/confirmation",
           params:   { role: role ?? "tenant", email },
         } as any);
       } else {
+        setError(data.message || "Please try again.");
         Alert.alert("Registration Failed", data.message || "Please try again.");
       }
     } catch {
+      setError("Cannot reach server. Make sure XAMPP is running.");
       Alert.alert("Connection Error", "Cannot reach server. Make sure XAMPP is running.");
     } finally {
       setLoading(false);
@@ -106,6 +118,14 @@ export default function RegisterScreen() {
 
         {/* Form */}
         <View style={styles.formCard}>
+
+          {/* Error Message */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={18} color="#DC2626" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
           {/* Full Name */}
           <View style={styles.fieldGroup}>
@@ -243,4 +263,6 @@ const styles = StyleSheet.create({
   loginBtn:       { paddingVertical: 14, borderRadius: 12, alignItems: "center", borderWidth: 1.5 },
   loginBtnText:   { fontSize: 15, fontWeight: "700" },
   footer:         { textAlign: "center", fontSize: 12, color: "#94A3B8" },
+  errorBox:       { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#FCA5A5" },
+  errorText:      { fontSize: 13, color: "#DC2626", flex: 1, fontWeight: "500" },
 });

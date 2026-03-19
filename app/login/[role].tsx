@@ -22,6 +22,7 @@ export default function RoleLogin() {
   const [password,     setPassword]     = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
 
   const isOwner      = role === "owner";
   const displayRole  = isOwner ? "Property Owner" : "Tenant";
@@ -30,7 +31,9 @@ export default function RoleLogin() {
   const accentBorder = isOwner ? "#E9D5FF" : "#BFDBFE";
 
   async function handleLogin() {
+    setError("");
     if (!email || !password) {
+      setError("Please enter your email and password.");
       Alert.alert("Missing Fields", "Please enter your email and password.");
       return;
     }
@@ -56,6 +59,7 @@ export default function RoleLogin() {
         body:    JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       const data = await response.json();
+      console.log("Login response data:", data);
 
       if (data.status === "success") {
         // If the user is actually an admin registered in the DB, redirect them too
@@ -67,25 +71,31 @@ export default function RoleLogin() {
 
         // Warn if they picked the wrong role button (but still let them in)
         if (data.role !== role) {
+          setError(`This account is registered as a ${data.role}.`);
           Alert.alert(
             "Wrong Account Type",
             `This account is registered as a ${data.role}. Redirecting you to the correct dashboard.`
           );
         }
 
+        console.log("Saving user with contact:", data.contact, "and address:", data.address);
         await UserStorage.saveUser({
           user_id:  data.user_id,
           email:    data.email,
           fullname: data.fullname,
           role:     data.role,
+          contact:  data.contact,
+          address:  data.address,
         });
 
         if (data.role === "owner") router.replace("/owner/home");
         else                       router.replace("/tenant/home");
       } else {
+        setError(data.message || "Invalid credentials. Please try again.");
         Alert.alert("Login Failed", data.message || "Invalid credentials. Please try again.");
       }
     } catch {
+      setError("Cannot connect to server. Please check your connection.");
       Alert.alert("Connection Error", "Cannot connect to server. Please check your connection.");
     } finally {
       setLoading(false);
@@ -118,6 +128,14 @@ export default function RoleLogin() {
 
         {/* Form Card */}
         <View style={styles.formCard}>
+          {/* Error Message */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={18} color="#DC2626" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
           {/* Email */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Email Address</Text>
@@ -247,4 +265,6 @@ const styles = StyleSheet.create({
   trustText:      { fontSize: 12, color: "#64748B", fontWeight: "500" },
   trustDot:       { width: 3, height: 3, borderRadius: 2, backgroundColor: "#CBD5E1" },
   footerText:     { textAlign: "center", fontSize: 12, color: "#94A3B8" },
+  errorBox:       { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#FCA5A5" },
+  errorText:      { fontSize: 13, color: "#DC2626", flex: 1, fontWeight: "500" },
 });

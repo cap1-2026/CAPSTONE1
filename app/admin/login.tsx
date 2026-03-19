@@ -19,9 +19,12 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleLogin() {
+    setError("");
     if (!email || !password) {
+      setError("Please enter your admin credentials.");
       Alert.alert("Missing Fields", "Please enter your admin credentials.");
       return;
     }
@@ -32,6 +35,7 @@ export default function AdminLogin() {
         await UserStorage.saveUser({ user_id: 0, email: ADMIN_EMAIL, fullname: "Admin", role: "admin" });
         router.replace("/admin/dashboard" as any);
       } else {
+        setError("Invalid admin credentials. Please try again.");
         Alert.alert("Access Denied", "Invalid admin credentials. Please try again.");
       }
     }, 800);
@@ -66,6 +70,14 @@ export default function AdminLogin() {
         {/* Form */}
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>Administrator Sign In</Text>
+
+          {/* Error Message */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Ionicons name="alert-circle" size={18} color="#DC2626" />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Admin Email</Text>
@@ -157,4 +169,6 @@ const styles = StyleSheet.create({
   hintLine: { fontSize: 13, color: "#15803D", marginBottom: 2, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
 
   footer: { textAlign: "center", fontSize: 12, color: "#94A3B8" },
+  errorBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FEE2E2", borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "#FCA5A5" },
+  errorText: { fontSize: 13, color: "#DC2626", flex: 1, fontWeight: "500" },
 });

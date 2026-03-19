@@ -36,7 +36,9 @@ if($result->num_rows > 0){
             "role"=>$row['role'],
             "user_id"=>$row['id'],
             "fullname"=>$row['fullname'],
-            "email"=>$row['email']
+            "email"=>$row['email'],
+            "contact"=>$row['contact'] ?? '',
+            "address"=>$row['address'] ?? ''
         ]);
     }else{
         echo json_encode(["status"=>"error", "message"=>"Invalid password"]);

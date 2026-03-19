@@ -10,6 +10,7 @@ import { UserStorage } from "../../utils/userStorage";
 
 interface Tenant {
   id: number;
+  tenant_id?: number;
   tenant_name: string;
   tenant_email: string;
   phone?: string;
@@ -173,6 +174,24 @@ export default function TenantsPage() {
               <Text style={styles.submittedDate}>
                 Submitted {new Date(item.created_at).toLocaleDateString()}
               </Text>
+
+              {item.status === "approved" && (
+                <TouchableOpacity
+                  style={styles.msgBtn}
+                  onPress={() => router.push({
+                    pathname: "/owner/messages",
+                    params: {
+                      booking_id: String(item.id),
+                      tenant_id: String(item.tenant_id ?? 0),
+                      tenant_name: item.tenant_name,
+                      property_name: item.property_name,
+                    },
+                  } as any)}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={16} color="#7C3AED" />
+                  <Text style={styles.msgBtnText}>Message Tenant</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         />
@@ -207,4 +226,6 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 5 },
   infoText: { fontSize: 13, color: "#475569", flex: 1 },
   submittedDate: { fontSize: 11, color: "#94A3B8", marginTop: 8 },
+  msgBtn:        { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "#F5F3FF", paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "#DDD6FE", marginTop: 10 },
+  msgBtnText:    { color: "#7C3AED", fontSize: 13, fontWeight: "700" },
 });

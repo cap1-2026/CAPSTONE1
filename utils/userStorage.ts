@@ -15,6 +15,8 @@ export interface StoredUser {
   email:   string;
   fullname: string;
   role:    "owner" | "tenant" | "admin";
+  contact?: string;
+  address?: string;
 }
 
 // One key per role — tabs never collide

@@ -9,7 +9,7 @@ import {
   Modal, Platform, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from "react-native";
-import API_ENDPOINTS from "../../../config/api";
+import API_ENDPOINTS, { API_BASE_URL } from "../../../config/api";
 import { UserStorage } from "../../../utils/userStorage";
 
 const ID_TYPES = ["Passport", "Driver's License", "National ID (PhilSys)", "SSS ID", "GSIS ID", "Voter's ID", "PRC ID"];
@@ -159,10 +159,53 @@ export default function BookingPage() {
   const [leaseDuration, setLeaseDuration] = useState("12 Months");
   const [transientDays, setTransientDays] = useState("");
 
-  // Pre-fill from stored user
+  // Move-out date picker (Apartment / Condo / Dormitory)
+  const [moveOutDate,   setMoveOutDate]   = useState<Date | null>(null);
+  const [outCalVisible, setOutCalVisible] = useState(false);
+  const moveOutMinDate = useMemo(() => {
+    const base = moveInDate ?? today;
+    const d = new Date(base);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }, [moveInDate, today]);
+  const moveOutStr = moveOutDate ? moveOutDate.toISOString().slice(0, 10) : "";
+
+  // Clear move-out if move-in date is pushed past it
   useEffect(() => {
-    UserStorage.getUser("tenant").then((u) => {
-      if (u) { setFullName(u.fullname); setEmail(u.email); }
+    if (moveOutDate && moveInDate && moveOutDate <= moveInDate) setMoveOutDate(null);
+  }, [moveInDate]);
+
+  // Recalculate duration whenever move-out date changes
+  useEffect(() => {
+    if (!moveOutDate) return;
+    const base = moveInDate ?? today;
+    const months = (moveOutDate.getFullYear() - base.getFullYear()) * 12 + (moveOutDate.getMonth() - base.getMonth());
+    if (months >= 1) setLeaseDuration(`${months} Month${months > 1 ? "s" : ""}`);
+    else {
+      const days = Math.round((moveOutDate.getTime() - base.getTime()) / 86400000);
+      setLeaseDuration(`${days} Day${days !== 1 ? "s" : ""}`);
+    }
+  }, [moveOutDate, moveInDate]);
+
+  // Pre-fill from stored user — always fetch fresh contact/address from server
+  useEffect(() => {
+    UserStorage.getUser("tenant").then(async (u) => {
+      if (!u) return;
+      setFullName(u.fullname);
+      setEmail(u.email);
+      try {
+        const res  = await fetch(`${API_BASE_URL}/get_user_profile.php?user_id=${u.user_id}`);
+        const data = await res.json();
+        if (data.status === "success") {
+          setPhone(data.contact || "");
+          setCurrentAddress(data.address || "");
+          // Update cached session so fallback works next time
+          await UserStorage.saveUser({ ...u, contact: data.contact, address: data.address });
+        }
+      } catch {
+        if (u.contact) setPhone(u.contact);
+        if (u.address) setCurrentAddress(u.address);
+      }
     });
   }, []);
 
@@ -228,6 +271,7 @@ export default function BookingPage() {
       form.append("emergency_contact_name", emergencyName);
       form.append("emergency_contact_phone",emergencyPhone);
       form.append("move_in",                moveInStr);
+      if (moveOutStr) form.append("move_out", moveOutStr);
       form.append("lease_duration",         leaseDuration);
       form.append("duration",               leaseDuration.split(" ")[0]);
       form.append("occupants",              occupants);
@@ -300,6 +344,26 @@ export default function BookingPage() {
             <CalendarPicker selectedDate={moveInDate} minDate={today} onSelect={(d) => { setMoveInDate(d); setCalVisible(false); }} />
             {moveInDate && (
               <TouchableOpacity style={styles.calClearBtn} onPress={() => setMoveInDate(null)}>
+                <Text style={styles.calClearTxt}>Clear Selection</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Move-out Date Modal */}
+      <Modal visible={outCalVisible} transparent animationType="fade" onRequestClose={() => setOutCalVisible(false)}>
+        <View style={styles.calModalOverlay}>
+          <View style={styles.calModalBox}>
+            <View style={styles.calModalHeader}>
+              <Text style={styles.calModalTitle}>Select Move-out Date</Text>
+              <TouchableOpacity onPress={() => setOutCalVisible(false)}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <CalendarPicker selectedDate={moveOutDate} minDate={moveOutMinDate} onSelect={(d) => { setMoveOutDate(d); setOutCalVisible(false); }} />
+            {moveOutDate && (
+              <TouchableOpacity style={styles.calClearBtn} onPress={() => { setMoveOutDate(null); setOutCalVisible(false); }}>
                 <Text style={styles.calClearTxt}>Clear Selection</Text>
               </TouchableOpacity>
             )}
@@ -414,16 +478,34 @@ export default function BookingPage() {
 
         <Text style={styles.label}>Lease Duration *</Text>
         {(property?.property_type === "Condominium" || property?.property_type === "Apartment") ? (
-          <View style={styles.leaseChoiceRow}>
-            {["6 Months", "12 Months"].map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[styles.leaseChoiceBtn, leaseDuration === opt && styles.leaseChoiceBtnActive]}
-                onPress={() => setLeaseDuration(opt)}
-              >
-                <Text style={[styles.leaseChoiceTxt, leaseDuration === opt && styles.leaseChoiceTxtActive]}>{opt}</Text>
-              </TouchableOpacity>
-            ))}
+          <View>
+            <View style={styles.leaseChoiceRow}>
+              {["6 Months", "12 Months"].map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[styles.leaseChoiceBtn, leaseDuration === opt && !moveOutDate && styles.leaseChoiceBtnActive]}
+                  onPress={() => { setLeaseDuration(opt); setMoveOutDate(null); }}
+                >
+                  <Text style={[styles.leaseChoiceTxt, leaseDuration === opt && !moveOutDate && styles.leaseChoiceTxtActive]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={[styles.label, { marginTop: 12 }]}>Or pick an end date:</Text>
+            <TouchableOpacity style={styles.calBtn} onPress={() => setOutCalVisible(true)}>
+              <Ionicons name="calendar-outline" size={20} color={moveOutDate ? "#1D4ED8" : "#94A3B8"} />
+              <Text style={[styles.calBtnTxt, !moveOutDate && styles.placeholder]}>
+                {moveOutDate
+                  ? `${DAYS[moveOutDate.getDay()]}, ${MONTHS[moveOutDate.getMonth()]} ${moveOutDate.getDate()}, ${moveOutDate.getFullYear()}`
+                  : "Tap to pick move-out date"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+            {moveOutDate && (
+              <View style={styles.calSelectedBox}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={styles.calSelectedTxt}>Move-out: {moveOutStr} · {leaseDuration}</Text>
+              </View>
+            )}
           </View>
         ) : property?.property_type === "Transient" ? (
           <View>
@@ -453,16 +535,34 @@ export default function BookingPage() {
             />
           </View>
         ) : property?.property_type === "Dormitory" ? (
-          <View style={styles.leaseChoiceRow}>
-            {["3 Months", "6 Months", "12 Months"].map((opt) => (
-              <TouchableOpacity
-                key={opt}
-                style={[styles.leaseChoiceBtn, leaseDuration === opt && styles.leaseChoiceBtnActive]}
-                onPress={() => setLeaseDuration(opt)}
-              >
-                <Text style={[styles.leaseChoiceTxt, leaseDuration === opt && styles.leaseChoiceTxtActive]}>{opt}</Text>
-              </TouchableOpacity>
-            ))}
+          <View>
+            <View style={styles.leaseChoiceRow}>
+              {["3 Months", "6 Months", "12 Months"].map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={[styles.leaseChoiceBtn, leaseDuration === opt && !moveOutDate && styles.leaseChoiceBtnActive]}
+                  onPress={() => { setLeaseDuration(opt); setMoveOutDate(null); }}
+                >
+                  <Text style={[styles.leaseChoiceTxt, leaseDuration === opt && !moveOutDate && styles.leaseChoiceTxtActive]}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={[styles.label, { marginTop: 12 }]}>Or pick an end date:</Text>
+            <TouchableOpacity style={styles.calBtn} onPress={() => setOutCalVisible(true)}>
+              <Ionicons name="calendar-outline" size={20} color={moveOutDate ? "#1D4ED8" : "#94A3B8"} />
+              <Text style={[styles.calBtnTxt, !moveOutDate && styles.placeholder]}>
+                {moveOutDate
+                  ? `${DAYS[moveOutDate.getDay()]}, ${MONTHS[moveOutDate.getMonth()]} ${moveOutDate.getDate()}, ${moveOutDate.getFullYear()}`
+                  : "Tap to pick move-out date"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+            {moveOutDate && (
+              <View style={styles.calSelectedBox}>
+                <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                <Text style={styles.calSelectedTxt}>Move-out: {moveOutStr} · {leaseDuration}</Text>
+              </View>
+            )}
           </View>
         ) : (
           <View style={styles.leaseBadge}>

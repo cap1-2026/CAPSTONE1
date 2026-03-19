@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { UserStorage } from "../../utils/userStorage";
+import { shadow } from "../../utils/shadow";
 
 export default function OwnerLayout() {
   const [open, setOpen] = useState(false);
@@ -61,7 +62,7 @@ export default function OwnerLayout() {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           {showBack ? (
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/owner/home" as any)} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={18} color="#374151" />
             </TouchableOpacity>
           ) : null}
@@ -131,7 +132,7 @@ export default function OwnerLayout() {
 }
 
 const styles = StyleSheet.create({
-  header:             { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', elevation: 2, shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6 },
+  header:             { backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 10, justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', ...shadow("#000", 0.04, 6, 2) },
   headerLeft:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backBtn:            { width: 34, height: 34, borderRadius: 8, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   logoRow:            { flexDirection: 'row', alignItems: 'center', gap: 7 },

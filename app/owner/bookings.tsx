@@ -213,8 +213,60 @@ export default function OwnerBookingsPage() {
     }
   }
 
+  // Parse lease duration string and calculate end date
+  function calculateEndDate(moveInDate: string, duration: string): Date {
+    const startDate = new Date(moveInDate);
+    const durationLower = duration.toLowerCase().trim();
+
+    let months = 0;
+    const monthMatch = durationLower.match(/(\d+)\s*month/);
+    const yearMatch = durationLower.match(/(\d+)\s*year/);
+
+    if (monthMatch) {
+      months = parseInt(monthMatch[1], 10);
+    } else if (yearMatch) {
+      months = parseInt(yearMatch[1], 10) * 12;
+    } else {
+      // Default to 1 month if parsing fails
+      months = 1;
+    }
+
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + months);
+    return endDate;
+  }
+
+  // Check for date conflicts with approved bookings
+  function hasDateConflict(booking: Booking): boolean {
+    const moveInDate = new Date(booking.move_in);
+    const endDate = calculateEndDate(booking.move_in, booking.lease_duration);
+
+    // Check all approved bookings for the same property
+    return bookings.some((b) => {
+      if (b.status !== "approved" || b.id === booking.id) return false;
+      if (b.property_name !== booking.property_name) return false;
+
+      const bMoveIn = new Date(b.move_in);
+      const bEndDate = calculateEndDate(b.move_in, b.lease_duration);
+
+      // Check if date ranges overlap
+      return moveInDate < bEndDate && endDate > bMoveIn;
+    });
+  }
+
   async function handleApproveBooking() {
     if (!approveModal || !ownerId) return;
+
+    // Check for date conflicts
+    if (hasDateConflict(approveModal.booking)) {
+      showAlert(
+        "Booking Conflict",
+        `Cannot approve this booking. The apartment is already booked during this period. Please check other bookings for "${approveModal.booking.property_name}".`
+      );
+      setApproveModal((prev) => prev ? { ...prev, approving: false } : null);
+      return;
+    }
+
     setApproveModal((prev) => prev ? { ...prev, approving: true } : null);
     try {
       const res  = await fetch(`${BASE}/approve_booking.php`, {

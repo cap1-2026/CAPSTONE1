@@ -49,7 +49,7 @@ export default function TenantHome() {
           {[
             { icon: "view-dashboard-outline", label: "Dashboard",    sub: "Overview & stats",     path: "/tenant/dashboard", color: "#EFF6FF", iconColor: "#2563EB" },
             { icon: "home-city-outline",       label: "My Properties",sub: "Active rentals",        path: "/tenant/properties", color: "#F5F3FF", iconColor: "#7C3AED" },
-            { icon: "map-marker-path",         label: "My Journey",   sub: "Booking → QR progress", path: "/tenant/approvals",  color: "#FFF7ED", iconColor: "#EA580C" },
+            { icon: "cash-multiple",            label: "Payment History", sub: "Your transaction records", path: "/tenant/payment-history", color: "#FFF7ED", iconColor: "#EA580C" },
             { icon: "home-search-outline",     label: "Browse",       sub: "Find new properties",   path: "/tenant/browse-properties", color: "#F0FDF4", iconColor: "#059669" },
           ].map((item, i) => (
             <TouchableOpacity key={i} style={styles.dashCard} onPress={() => router.push(item.path as any)}>
