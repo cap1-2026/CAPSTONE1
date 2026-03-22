@@ -29,6 +29,8 @@ interface Booking {
   tenant_signature?: string;
   created_at: string;
   property_type?: string;
+  owner_id?: number;
+  owner_name?: string;
 }
 
 type PayMethod = "paymongo";
@@ -1296,6 +1298,25 @@ export default function TenantFlowPage() {
                           {renderPaymentStep(b, step)}
                           {renderQRStep(b, step)}
                         </View>
+
+                        {/* Message Owner button — visible once booking is approved */}
+                        {b.status === "approved" && b.owner_id && (
+                          <TouchableOpacity
+                            style={S.msgOwnerBtn}
+                            onPress={() => router.push({
+                              pathname: "/tenant/messages",
+                              params: {
+                                booking_id:    String(b.id),
+                                owner_id:      String(b.owner_id),
+                                owner_name:    b.owner_name || "Property Owner",
+                                property_name: b.property_name,
+                              },
+                            } as any)}
+                          >
+                            <Ionicons name="chatbubble-ellipses" size={16} color="#fff" />
+                            <Text style={S.msgOwnerBtnTxt}>Message Owner</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     );
                   })
@@ -1586,6 +1607,10 @@ const S = StyleSheet.create({
   // Sign Contract button (replaces inline form)
   signContractBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#1D4ED8", paddingVertical: 14, borderRadius: 12, marginTop: 6 },
   signContractBtnText: { color: "#fff", fontSize: 14, fontWeight: "700", flex: 1, textAlign: "center" },
+
+  // Message Owner button
+  msgOwnerBtn:    { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#7C3AED", marginHorizontal: 12, marginBottom: 12, marginTop: 4, borderRadius: 12, paddingVertical: 11, gap: 8 },
+  msgOwnerBtnTxt: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });
 
 const CM = StyleSheet.create({

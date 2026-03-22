@@ -59,6 +59,7 @@ const API_ENDPOINTS = {
   // ── Messaging ─────────────────────────────────────────
   GET_MESSAGES:    `${API_BASE_URL}/get_messages.php`,
   SEND_MESSAGE:    `${API_BASE_URL}/send_message.php`,
+  MARK_READ:       `${API_BASE_URL}/mark_read.php`,
 };
 
 export default API_ENDPOINTS;

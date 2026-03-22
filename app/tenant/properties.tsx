@@ -22,6 +22,7 @@ interface Booking {
   property_deposit: number;
   created_at: string;
   owner_id?: number;
+  owner_name?: string;
 }
 
 export default function TenantPropertiesPage() {
@@ -320,8 +321,9 @@ export default function TenantPropertiesPage() {
                           onPress={() => router.push({
                             pathname: "/tenant/messages",
                             params: {
-                              booking_id: String(item.id),
-                              owner_id: String(item.owner_id),
+                              booking_id:    String(item.id),
+                              owner_id:      String(item.owner_id),
+                              owner_name:    item.owner_name || "Property Owner",
                               property_name: item.property_name,
                             },
                           } as any)}
